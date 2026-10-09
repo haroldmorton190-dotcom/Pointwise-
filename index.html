@@ -29,7 +29,7 @@ a{color:inherit}
 .brand i{display:inline-block;width:30px;height:18px;border-radius:50%;background:#8A4520;position:relative;transform:rotate(-24deg);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
 .brand i::after{content:””;position:absolute;left:8px;right:8px;top:50%;height:2px;margin-top:-1px;background:#fff;border-radius:1px}
 .league-tabs{display:flex;gap:6px}
-.league-tabs a{padding:7px 16px;border-radius:999px;text-decoration:none;font-weight:700;font-size:14px;color:#BFD6C8;border:1px solid rgba(255,255,255,.2)}
+.league-tabs a{padding:8px 22px;border-radius:999px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.02em;color:#BFD6C8;border:1px solid rgba(255,255,255,.2)}
 .league-tabs a[aria-current=“page”]{background:#FFD21F;border-color:#FFD21F;color:#3A2D00}
 
 /* hero */
@@ -68,6 +68,9 @@ a{color:inherit}
 .tx{min-width:0}
 .tx .k{font-size:14px;font-weight:700}
 .tx .rec{font-family:‘Big Shoulders Display’,‘Arial Narrow’,Impact,sans-serif;font-weight:800;font-size:32px;line-height:1.05;margin-top:2px}
+.rl{font-size:13px;font-weight:700;color:#17402F;margin-top:1px}
+.meth{padding:0 16px 14px;font-size:13.5px;line-height:1.5;color:#33433A}
+.meth p{margin-top:8px;max-width:70ch}
 .tile .sub{font-size:12.5px;color:#5A6B61;margin-top:3px;line-height:1.35}
 .tile.main .sub{color:#B7CFC0}
 .pos{color:#1C8C52}.neg{color:#B3262B}
@@ -110,9 +113,9 @@ main{padding:30px 0 20px}
 .card-head b{color:#fff;font-weight:700}
 .status{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#fff}
 .status.live{color:#FF7A7A}
-.field{display:flex;height:60px;background:#1D6B42}
+.field{display:flex;height:60px;background:#1D6B42;overflow:hidden}
 .ez{flex:none;width:15%;display:grid;place-items:center;font-family:‘Big Shoulders Display’,‘Arial Narrow’,Impact,sans-serif;font-weight:900;font-size:24px;letter-spacing:.05em}
-.turf{position:relative;flex:1;background-color:#1D6B42;
+.turf{position:relative;flex:1;min-width:0;background-color:#1D6B42;
 background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0,rgba(255,255,255,.4) 2px,transparent 2px,transparent 10%),repeating-linear-gradient(90deg,rgba(255,255,255,.06) 0,rgba(255,255,255,.06) 10%,transparent 10%,transparent 20%)}
 .turf .yds span{position:absolute;bottom:5px;transform:translateX(-50%);font-family:‘Big Shoulders Display’,‘Arial Narrow’,Impact,sans-serif;font-weight:700;font-size:16px;color:rgba(255,255,255,.5)}
 .fdl{position:absolute;top:-3px;bottom:-3px;width:5px;margin-left:-2px;background:#FFD21F;box-shadow:0 0 14px rgba(255,210,31,.9);z-index:2}
@@ -215,9 +218,9 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 <header class="bar">
   <div class="wrap">
     <a class="brand" href="#top"><i aria-hidden="true"></i>Pointwise</a>
-    <nav class="league-tabs" aria-label="League">
-      <a href="#cfb" id="tabCFB">CFB</a>
-      <a href="#nfl" id="tabNFL" aria-current="page">NFL</a>
+    <nav class="league-tabs" aria-label="Sport" role="tablist">
+      <a href="#cfb" id="tabCFB" role="tab" data-sport="cfb">CFB</a>
+      <a href="#nfl" id="tabNFL" role="tab" data-sport="nfl" aria-current="page">NFL</a>
     </nav>
   </div>
 </header>
@@ -238,11 +241,12 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
 <section class="record" aria-labelledby="recTitle">
   <div class="wrap">
-    <div class="intro"><h2 id="recTitle">Model record</h2>
-      <p>Season to date. Picks come from team ratings plus schedule factors, then get graded on the final score. ATS is graded against the market spread, and the moneyline record is the model's projected winner.</p></div>
+    <div class="intro"><h2 id="recTitle">Results</h2>
+      <p id="recIntro">Season to date.</p></div>
     <div class="tiles" id="tiles"></div>
     <p class="note" id="factorNote" style="margin-top:12px"></p>
-    <details class="wk" id="weekly"><summary>Week-by-week results</summary><div class="tablewrap" id="weeklyTable"></div></details>
+    <details class="wk" id="weekly"><summary>Week-by-week percentages</summary><div class="tablewrap" id="weeklyTable"></div></details>
+    <details class="wk" id="method"><summary>How percentages are calculated</summary><div class="meth" id="methodBody"></div></details>
   </div>
 </section>
 
@@ -283,7 +287,7 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 <footer>
   <div class="wrap">
     <span>&#169; <span id="yr"></span> Pointwise &#183; Schedule, scores and lines from ESPN</span>
-    <span>For information and entertainment only &#183; build 6</span>
+    <span>For information and entertainment only &#183; build 7</span>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -310,7 +314,6 @@ const LEAGUES = {
 let LG = LEAGUES.nfl;
 let API = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
 let HFA = 2.0, SD = 13.4, BASE_MU = 22.5;
-const ATS_JUICE = 100/110;
 function setLeague(id){
   LG = LEAGUES[id] || LEAGUES.nfl;
   API = "https://site.api.espn.com/apis/site/v2/sports/" + LG.path;
@@ -658,13 +661,10 @@ function grade(g){
     const cm = favAct - m.line;
     if(cm === 0) m.ats = "P";
     else m.ats = ((cm > 0) === m.coverFav) ? "W" : "L";
-    m.atsUnits = m.ats === "W" ? ATS_JUICE : m.ats === "L" ? -1 : 0;
   }
   if(hs !== as){
     const actual = hs > as ? "home" : "away";
     m.ml = actual === m.winner ? "W" : "L";
-    const odds = g.market ? (m.winner === "home" ? g.market.mlHome : g.market.mlAway) : null;
-    if(odds != null) m.mlUnits = m.ml === "W" ? (odds > 0 ? odds/100 : 100/-odds) : -1;
   }
 }
 function learn(g, S){
@@ -694,14 +694,13 @@ function runModel(slotGames){
 
 /* ---------------------------- records ---------------------------- */
 function tally(list){
-  const r = {mlW:0, mlL:0, atsW:0, atsL:0, atsP:0, eW:0, eL:0, eP:0, mlU:0, mlUn:0, atsU:0, games:0};
+  const r = {mlW:0, mlL:0, atsW:0, atsL:0, atsP:0, eW:0, eL:0, eP:0, games:0};
   list.forEach(g => {
     const m = g.m; if(!g.completed || !m) return;
     r.games++;
     if(m.ml === "W") r.mlW++; else if(m.ml === "L") r.mlL++;
-    if(m.mlUnits != null){ r.mlU += m.mlUnits; r.mlUn++; }
     if(m.ats){
-      r["ats" + m.ats]++; r.atsU += m.atsUnits;
+      r["ats" + m.ats]++;
       if(m.edge >= LG.edgeMin) r["e" + m.ats]++;
     }
   });
@@ -713,8 +712,6 @@ function tally(list){
   return r;
 }
 const pct = p => p == null ? "\u2014" : (p * 100).toFixed(1) + "%";
-const units = u => (u > 0 ? "+" : u < 0 ? "\u2212" : "") + Math.abs(u).toFixed(1) + "u";
-const cls = u => u > 0 ? "pos" : u < 0 ? "neg" : "";
 
 /* ---------------------------- state ---------------------------- */
 let SLOTS = [], GAMES = [], selIdx = 0, followLatest = true;
@@ -749,7 +746,7 @@ function mlPickText(g){ return teamOf(g, g.m.winner).name; }
 function ring(p, cls){
   const deg = p == null ? 0 : Math.round(p * 360);
   const fill = cls === "main" ? "#FFD21F" : "#1C8C52", track = cls === "main" ? "rgba(255,255,255,.16)" : "#E1E8DE";
-  const tick = cls === "ats" ? `<i class="tick" style="transform:rotate(188.6deg)"></i>` : "";
+  const tick = "";
   return `<div class="ring ${cls}" style="background:conic-gradient(${fill} ${deg}deg, ${track} 0)">${tick}<div class="ringin">${p == null ? "-" : (p * 100).toFixed(1) + "%"}</div></div>`;
 }
 function impliedHome(mk){
@@ -815,30 +812,43 @@ function renderRecord(){
     ? "Factors in play: team ratings, rest, recent form and the Top 25 ranking as a fading starting point. College has no free injury, weather or travel data here yet, and teams have played few games, so ratings are rougher than the NFL's. The Top 25 adjustment only applies to games not yet played."
     : "Factors in play: team ratings, rest, travel, altitude, recent form" + (Object.keys(INJ).length ? ", injury reports" : " (injury feed unavailable right now)") + (WX_COUNT ? ", weather forecast" : "") +
       ". Injury and forecast adjustments only apply to games not yet played, because past injury reports can't be reconstructed, so they aren't in the graded record above.";
+  const mlN = r.mlW + r.mlL, atsN = r.atsW + r.atsL, eN = r.eW + r.eL;
+  const graded = n => `${n} ${n === 1 ? "game" : "games"} graded`;
+  document.getElementById("recTitle").textContent = `${LG.name} results`;
+  document.getElementById("recIntro").textContent = `Season to date for ${LG.name}. Win rate is how often the model's projected winner won. Cover rate is how often its spread pick beat the market line.`;
   document.getElementById("tiles").innerHTML = `
     <div class="tile main">${ring(r.avg, "main")}
-      <div class="tx"><div class="k">Average win %</div>
+      <div class="tx"><div class="k">Average of win rate and cover rate</div>
       <div class="sub">Moneyline ${pct(r.mlPct)} and ATS ${pct(r.atsPct)}, averaged.${small}</div></div>
     </div>
     <div class="tile">${ring(r.mlPct, "ml")}
-      <div class="tx"><div class="k">Moneyline</div><div class="rec">${r.mlW}\u2013${r.mlL}</div>
-      <div class="sub">${r.mlUn ? `<span class="${cls(r.mlU)}">${units(r.mlU)}</span> at market odds (${r.mlUn} games)` : "No moneyline odds to grade yet"}</div></div>
+      <div class="tx"><div class="k">Moneyline</div><div class="rl">Win rate</div><div class="sub">${graded(mlN)}</div></div>
     </div>
     <div class="tile">${ring(r.atsPct, "ats")}
-      <div class="tx"><div class="k">Against the spread</div><div class="rec">${r.atsW}\u2013${r.atsL}${r.atsP ? "\u2013" + r.atsP : ""}</div>
-      <div class="sub"><span class="${cls(r.atsU)}">${units(r.atsU)}</span> at \u2212110. The dark notch on the ring marks breakeven, 52.4%.</div></div>
+      <div class="tx"><div class="k">Against the spread</div><div class="rl">Cover rate</div>
+      <div class="sub">${graded(atsN)}${r.atsP ? `, ${r.atsP} ${r.atsP === 1 ? "push" : "pushes"} left out` : ""}</div></div>
     </div>
     <div class="tile">${ring(r.ePct, "edge")}
-      <div class="tx"><div class="k">ATS on ${LG.edgeMin}+ point edges</div><div class="rec">${r.eW}\u2013${r.eL}${r.eP ? "\u2013" + r.eP : ""}</div>
-      <div class="sub">Only picks where the model and market are ${LG.edgeMin} or more points apart.</div></div>
+      <div class="tx"><div class="k">Spread picks with a ${LG.edgeMin}+ point model-market gap</div><div class="rl">Cover rate</div><div class="sub">${graded(eN)}</div></div>
     </div>`;
 
   const rows = SLOTS.map(s => ({s, t: tally(s._games || [])})).filter(x => x.t.games > 0);
   document.getElementById("weeklyTable").innerHTML = rows.length ? `
-    <table><thead><tr><th>Week</th><th>Moneyline</th><th>ML %</th><th>ATS</th><th>ATS %</th><th>Avg %</th></tr></thead><tbody>
-    ${rows.map(({s,t}) => `<tr><td>${esc(slotLabel(s))}</td><td>${t.mlW}\u2013${t.mlL}</td><td>${pct(t.mlPct)}</td><td>${t.atsW}\u2013${t.atsL}${t.atsP ? "\u2013" + t.atsP : ""}</td><td>${pct(t.atsPct)}</td><td>${pct(t.avg)}</td></tr>`).join("")}
-    <tr class="total"><td>Season</td><td>${r.mlW}\u2013${r.mlL}</td><td>${pct(r.mlPct)}</td><td>${r.atsW}\u2013${r.atsL}${r.atsP ? "\u2013" + r.atsP : ""}</td><td>${pct(r.atsPct)}</td><td>${pct(r.avg)}</td></tr>
-    </tbody></table>` : `<p class="note" style="padding:4px 0 8px">Results will show up here once the first games are final.</p>`;
+    <table><thead><tr><th>Week</th><th>Moneyline win rate</th><th>ATS cover rate</th><th>Cover rate, ${LG.edgeMin}+ pt gap</th><th>Games graded (ML / ATS)</th></tr></thead><tbody>
+    ${rows.map(({s,t}) => `<tr><td>${esc(slotLabel(s))}</td><td>${pct(t.mlPct)}</td><td>${pct(t.atsPct)}</td><td>${pct(t.ePct)}</td><td>${t.mlW + t.mlL} / ${t.atsW + t.atsL}</td></tr>`).join("")}
+    <tr class="total"><td>Season</td><td>${pct(r.mlPct)}</td><td>${pct(r.atsPct)}</td><td>${pct(r.ePct)}</td><td>${mlN} / ${atsN}</td></tr>
+    </tbody></table>` : `<p class="note" style="padding:4px 0 8px">Percentages will show up here once the first games are final.</p>`;
+
+  const first = rows[0], last = rows[rows.length - 1];
+  const period = rows.length ? `${slotLabel(first.s)}${first.s === last.s ? "" : " through " + slotLabel(last.s)} of the ${first.s.year} ${LG.name} season` : "No games have been graded yet";
+  document.getElementById("methodBody").innerHTML = `
+    <p><b>Reporting period.</b> ${esc(period)}.</p>
+    <p><b>Games counted.</b> Moneyline: ${mlN}. Against the spread: ${atsN}. Spread picks with a ${LG.edgeMin}+ point gap: ${eN}.</p>
+    <p><b>Win rate</b> is the share of games where the model's projected winner won. <b>Cover rate</b> is the share of spread picks that beat the market line. The average tile is the mean of those two rates.</p>
+    <p><b>What is left out.</b> Pushes (the margin landed exactly on the line) are not counted in cover rate. Ties, games without a final score, and games with no posted line are left out too.</p>
+    <p><b>When picks were made.</b> These results are calculated after the fact, not saved before kickoff. The page rebuilds each pick using only games played before that week and grades it against the latest line ESPN reports for the game, usually the closing line.</p>
+    <p>${LG.id === "cfb" ? "The Top 25 ranking adjustment applies only to games not yet played, so it isn't in these percentages. College has no injury, weather or travel data here." : "Injury, weather and forecast adjustments apply only to games not yet played, so they aren't in these percentages."}</p>
+    <p>These are historical rates. They don't predict whether the next pick will win.</p>`;
 }
 
 function teamRow(g, side){
@@ -981,13 +991,21 @@ async function buildSlots(){
   slots.forEach(s => s.year = year);
   return slots;
 }
+let loadSeq = 0;
 async function load(forceLatest){
+  const seq = ++loadSeq;
+  try{ await loadInner(forceLatest, seq); }
+  catch(e){ if(seq !== loadSeq) return; throw e; }
+}
+async function loadInner(forceLatest, seq){
   const slots = await buildSlots();
+  if(seq !== loadSeq) return;
   const latest = slots.length - 1;
   const results = await Promise.all(slots.map((s,i) => loadSlot(s, forceLatest && i === latest).catch(err => {
     if(i === latest) throw err;   // current week is required
     return [];                    // an older week that fails just drops out of the record
   })));
+  if(seq !== loadSeq) return;
   // If every game in the latest week is final, move on: show the next week as soon as its games exist.
   const tail = slots[slots.length - 1];
   if(tail.type === 2 && tail.week < LG.maxWeek && results[latest].length && results[latest].every(g => g.completed)){
@@ -997,10 +1015,12 @@ async function load(forceLatest){
       if(ng.length){ slots.push(next); results.push(ng); }
     }catch(e){}
   }
+  if(seq !== loadSeq) return;
   const newest = slots.length - 1;
   slots.forEach((s,i) => s._games = results[i]);
   if(LG.id === "nfl") await Promise.all([loadInjuries(), loadWeather((results[newest] || []).filter(g => !g.completed))]);
   else { INJ = {}; WX_COUNT = 0; }
+  if(seq !== loadSeq) return;
   runModel(results);
   const prevKey = SLOTS[selIdx] ? `${SLOTS[selIdx].type}-${SLOTS[selIdx].week}` : null;
   SLOTS = slots;
@@ -1206,24 +1226,52 @@ document.addEventListener("input", e => {
 
 /* ---------------------------- league switching ---------------------------- */
 function updateNav(){
-  document.getElementById("tabNFL").setAttribute("aria-current", LG.id === "nfl" ? "page" : "false");
-  document.getElementById("tabCFB").setAttribute("aria-current", LG.id === "cfb" ? "page" : "false");
+  ["NFL", "CFB"].forEach(k => {
+    const on = LG.id === k.toLowerCase(), tab = document.getElementById("tab" + k);
+    tab.setAttribute("aria-current", on ? "page" : "false"); tab.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.getElementById("recTitle").textContent = `${LG.name} results`;
   document.getElementById("rankWrap").style.display = LG.id === "cfb" ? "" : "none";
   document.getElementById("edgeLbl").textContent = `Edge ${LG.edgeMin}+ only`;
   document.title = `${LG.name} Projections - Pointwise`;
 }
+function clearBoard(){
+  ["plays", "tiles", "weeklyTable", "methodBody", "dayFilter", "week"].forEach(id => { document.getElementById(id).innerHTML = ""; });
+  document.getElementById("games").innerHTML = `<p class="empty">Loading games...</p>`;
+  document.getElementById("heroTitle").textContent = "Loading";
+  document.getElementById("heroLeague").textContent = LG.id === "nfl" ? "NFL" : "College football";
+  document.getElementById("heroMeta").innerHTML = `<span>Loading this week's schedule...</span>`;
+  document.getElementById("gamesTitle").textContent = "Games";
+  document.getElementById("factorNote").textContent = "";
+  document.getElementById("recIntro").textContent = "";
+}
 function switchLeague(id){
-  if(LEAGUES[id] === LG) return;
+  if(!LEAGUES[id] || LEAGUES[id] === LG) return;
   clearTimeout(timer);
   setLeague(id);
-  SLOTS = []; GAMES = []; selIdx = 0; followLatest = true; dayFilter = "All"; rankedOnly = false; searchText = "";
-  document.getElementById("rankedOnly").checked = false; document.getElementById("search").value = "";
+  loadSeq++;   // any request still running for the old sport is ignored
+  SLOTS = []; GAMES = []; selIdx = 0; followLatest = true; lastUpdated = null; INJ = {}; WX_COUNT = 0;
+  dayFilter = "All"; rankedOnly = false; edgeOnly = false; searchText = "";
+  document.getElementById("rankedOnly").checked = false; document.getElementById("edgeOnly").checked = false; document.getElementById("search").value = "";
   OPEN_PROPS.clear();
-  updateNav(); start();
+  updateNav(); clearBoard(); start();
 }
-window.addEventListener("hashchange", () => { const h = location.hash; if(h === "#cfb" || h === "#nfl") switchLeague(h.slice(1)); });
-document.getElementById("search").addEventListener("input", e => { searchText = e.target.value.trim().toLowerCase(); renderFilters(); renderGames(); });
-document.getElementById("rankedOnly").addEventListener("change", e => { rankedOnly = e.target.checked; renderGames(); });
+function syncFromHash(){
+  const h = location.hash;
+  const id = h === "#cfb" ? "cfb" : (h === "#nfl" || h === "") ? "nfl" : null;
+  if(id) switchLeague(id);
+}
+window.addEventListener("hashchange", syncFromHash);
+window.addEventListener("popstate", syncFromHash);
+document.querySelectorAll(".league-tabs a").forEach(a => a.addEventListener("click", e => {
+  e.preventDefault();
+  const id = a.dataset.sport;
+  if(LEAGUES[id] === LG) return;
+  history.pushState(null, "", "#" + id);   // gives back/forward a history entry for each sport
+  switchLeague(id);
+}));
+document.getElementById("search").addEventListener("input", e => { if(!SLOTS.length) return; searchText = e.target.value.trim().toLowerCase(); renderFilters(); renderGames(); });
+document.getElementById("rankedOnly").addEventListener("change", e => { if(!SLOTS.length) return; rankedOnly = e.target.checked; renderGames(); });
 
 /* ---------------------------- events ---------------------------- */
 function jumpTo(id){
@@ -1247,8 +1295,8 @@ document.getElementById("dayFilter").addEventListener("click", e => {
 document.getElementById("week").addEventListener("change", e => {
   selIdx = +e.target.value; followLatest = selIdx === SLOTS.length - 1; dayFilter = "All"; renderAll(); schedule();
 });
-document.getElementById("sort").addEventListener("change", e => { sortBy = e.target.value; renderGames(); });
-document.getElementById("edgeOnly").addEventListener("change", e => { edgeOnly = e.target.checked; renderGames(); });
+document.getElementById("sort").addEventListener("change", e => { sortBy = e.target.value; if(SLOTS.length) renderGames(); });
+document.getElementById("edgeOnly").addEventListener("change", e => { edgeOnly = e.target.checked; if(SLOTS.length) renderGames(); });
 document.getElementById("copy").addEventListener("click", async () => {
   const list = visible();
   const text = `${slotLabel(SLOTS[selIdx])} picks\n` + list.map(g =>
