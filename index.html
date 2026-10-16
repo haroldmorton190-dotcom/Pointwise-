@@ -61,7 +61,7 @@ a{color:inherit}
 /* record */
 .record{padding:40px 0 20px}
 .intro p{color:#B7CFC0;max-width:660px;margin-top:8px}
-.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:20px}
 .tile{display:flex;gap:14px;align-items:center;background:#F8F9F5;color:#14201A;border-radius:3px;padding:16px;box-shadow:5px 5px 0 rgba(0,0,0,.22)}
 .tile.main{background:rgba(4,20,13,.62);color:#fff;border:1px solid rgba(255,255,255,.14);box-shadow:none}
 .tx{min-width:0}
@@ -183,6 +183,10 @@ details.props .note{margin:8px 0}
 .rate{display:inline-block;font-weight:800;font-family:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;font-size:21px;padding:1px 8px;border-radius:4px;margin-right:4px}
 .rate.hi{background:#DDF3E5;color:#146B3E}.rate.mid{background:#FBF1CC;color:#6B5200}.rate.lo{background:#E6E9E6;color:#5A6B61}
 .prate{display:grid;gap:2px;justify-items:end}
+.pcalc{display:grid;gap:3px;margin-top:3px}
+.pcalc small{display:block}
+.vline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ovinp,.unin{width:92px;font:inherit;font-size:14px;padding:5px 7px;border:1px solid #CBD6CD;border-radius:6px;background:#fff;color:#14201A}
 
 .support{margin:40px 0 8px;display:flex;flex-wrap:wrap;gap:12px 20px;justify-content:space-between;align-items:center;background:#F8F9F5;color:#14201A;border-radius:3px;padding:18px 20px;box-shadow:5px 5px 0 rgba(0,0,0,.22)}
 .support strong{display:block;font-size:17px}
@@ -226,6 +230,7 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
     <a class="brand" href="#top"><i aria-hidden="true"></i>Pointwise</a>
     <nav class="league-tabs" aria-label="Sport" role="tablist">
       <a href="#cfb" id="tabCFB" role="tab" data-sport="cfb">CFB</a>
+      <a href="#nba" id="tabNBA" role="tab" data-sport="nba">NBA</a>
       <a href="#nfl" id="tabNFL" role="tab" data-sport="nfl" aria-current="page">NFL</a>
     </nav>
   </div>
@@ -251,9 +256,11 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
       <p id="recIntro">Season to date.</p></div>
     <div class="seg" id="resMode" role="group" aria-label="Result type" style="margin-top:16px"></div>
     <p class="note" id="resBanner" style="margin-top:10px;max-width:70ch"></p>
+    <p class="note" id="clvNote" style="margin-top:6px;max-width:70ch"></p>
     <div class="tiles" id="tiles"></div>
     <p class="note" id="factorNote" style="margin-top:12px"></p>
     <details class="wk" id="weekly"><summary>Week-by-week percentages</summary><div class="tablewrap" id="weeklyTable"></div></details>
+    <details class="wk" id="review"><summary>Weekly performance review</summary><div class="meth" id="reviewBody"></div></details>
     <details class="wk" id="method"><summary>How percentages are calculated</summary><div class="meth" id="methodBody"></div></details>
     <details class="wk" id="compare"><summary>Model comparison, calibration and uncertainty</summary><div class="meth cmp" id="compareBody"></div></details>
     <details class="wk" id="sources"><summary>Data sources and what is missing</summary><div class="tablewrap" id="sourcesBody"></div></details>
@@ -294,7 +301,7 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 <footer>
   <div class="wrap">
     <span>&#169; <span id="yr"></span> Pointwise &#183; Schedule, scores and lines from ESPN</span>
-    <span>For information and entertainment only &#183; build 8</span>
+    <span>For information and entertainment only &#183; build 9</span>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -316,7 +323,9 @@ const LEAGUES = {
   nfl: {id:"nfl", name:"NFL", path:"football/nfl", q:"", limit:100, maxWeek:18, hfa:2.0, sd:13.4, mu:22.5, muMin:32, cap:17,
         edgeMin:2, sdTotal:10, minGames:3, meterHi:14, edgeScale:8, po:{1:"Wild Card",2:"Divisional",3:"Conference",5:"Super Bowl"}, poWeeks:[1,2,3,5]},
   cfb: {id:"cfb", name:"College football", path:"football/college-football", q:"&groups=80", limit:300, maxWeek:15, hfa:2.5, sd:16.5, mu:28, muMin:120, cap:24,
-        edgeMin:3, sdTotal:13.5, minGames:3, meterHi:35, edgeScale:12, po:{1:"Bowls and playoff"}, poWeeks:[1]}
+        edgeMin:3, sdTotal:13.5, minGames:3, meterHi:35, edgeScale:12, po:{1:"Bowls and playoff"}, poWeeks:[1]},
+  nba: {id:"nba", name:"NBA", path:"basketball/nba", q:"", limit:300, daily:true, maxWeek:0, hfa:2.3, sd:12.0, mu:114, muMin:60, cap:25,
+        edgeMin:2.5, sdTotal:17.5, minGames:10, meterHi:20, edgeScale:8, po:{}, poWeeks:[]}
 };
 let LG = LEAGUES.nfl;
 let API = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
@@ -587,7 +596,7 @@ function factors(g, S){
   // rest and bye weeks
   const rd = c => S.last[c] ? (kick - S.last[c]) / 864e5 : null;
   const dH = rd(g.home.code), dA = rd(g.away.code);
-  const rp = d => d == null ? 0 : clamp((d - 7) * 0.35, -1, 1);
+  const rp = d => d == null ? 0 : LG.id === "nba" ? (d < 1.6 ? -1.5 : d >= 3 ? 0.5 : 0) : clamp((d - 7) * 0.35, -1, 1);   // NBA: back-to-back penalty (hand-set)
   if(dH != null && dA != null){
     const diff = rp(dH) - rp(dA), dd = d => d >= 12 ? "off a bye" : Math.round(d) + " days";
     team(diff >= 0 ? "home" : "away", "Rest", Math.abs(diff), `${g.home.code} ${dd(dH)}, ${g.away.code} ${dd(dA)}`);
@@ -629,8 +638,8 @@ function factors(g, S){
 }
 
 /* ---------------------------- model: pure pick and grading rules (covered by the test file) ---------------------------- */
-const MODEL_VERSION = {nfl: "nfl-ratings-1.0", cfb: "cfb-ratings-1.0"};            // makes the headline picks
-const EXP_VERSION = {nfl: "nfl-adjusted-0.1", cfb: "cfb-adjusted-0.1"};          // research only, not used for picks
+const MODEL_VERSION = {nfl: "nfl-ratings-1.0", cfb: "cfb-ratings-1.0", nba: "nba-ratings-1.0"};            // makes the headline picks
+const EXP_VERSION = {nfl: "nfl-adjusted-0.1", cfb: "cfb-adjusted-0.1", nba: "nba-adjusted-0.1"};          // research only, not used for picks
 const MIN_CAL = 100;   // graded games needed before a probability may be called calibrated
 const MIN_SD = 40;     // graded games needed before measured error replaces the assumed spread
 
@@ -662,6 +671,73 @@ function wilson(w, n){
   return [(c - a) / d, (c + a) / d];
 }
 
+/* ---------------------------- odds math and probability calibration ---------------------------- */
+const beProb = a => a < 0 ? -a / (-a + 100) : 100 / (a + 100);                       // break-even probability for American odds
+const decOdds = a => a < 0 ? 1 + 100 / -a : 1 + a / 100;                              // decimal odds
+const evUnit = (p, a, pPush) => p * (decOdds(a) - 1) - (1 - p - (pPush || 0));       // expected profit per 1 unit; a push returns the stake
+const profitUnit = (res, a) => res === "W" ? decOdds(a) - 1 : res === "L" ? -1 : 0;
+function devig(a, b){                                                                 // remove the sportsbook's margin from a two-sided market
+  if(a == null || b == null) return null;
+  const pa = beProb(a), pb = beProb(b), t = pa + pb;
+  return {a: pa / t, b: pb / t, hold: t - 1};
+}
+function fitPlatt(ps, ys){                                                            // logistic regression of outcomes on logit(p), Newton steps
+  const x = ps.map(p => { p = clamp(p, 0.001, 0.999); return Math.log(p / (1 - p)); });
+  let a = 1, b = 0;
+  for(let it = 0; it < 60; it++){
+    let g0 = 0, g1 = 0, h00 = 1e-6, h01 = 0, h11 = 1e-6;
+    for(let i = 0; i < x.length; i++){
+      const q = 1 / (1 + Math.exp(-(a * x[i] + b))), w = q * (1 - q) + 1e-9, r = q - ys[i];
+      g0 += r * x[i]; g1 += r; h00 += w * x[i] * x[i]; h01 += w * x[i]; h11 += w;
+    }
+    const det = h00 * h11 - h01 * h01; if(Math.abs(det) < 1e-12) break;
+    const da = (h11 * g0 - h01 * g1) / det, db = (-h01 * g0 + h00 * g1) / det;
+    a -= da; b -= db;
+    if(Math.abs(da) + Math.abs(db) < 1e-9) break;
+  }
+  return {a, b};
+}
+function applyPlatt(p, f){ p = clamp(p, 0.001, 0.999); return 1 / (1 + Math.exp(-(f.a * Math.log(p / (1 - p)) + f.b))); }
+// Tiers are placeholders. Anything above LEAN stays locked until archived results justify it (see TIER_UNLOCK).
+const TIERS = {elite: {ev: 0.10, conf: 75}, strong: {ev: 0.06, conf: 60}, lean: {ev: 0.02, conf: 40}};
+const TIER_UNLOCK = {games: false, props: false};
+function tierOf(ev, conf, unlocked){
+  let t = "PASS";
+  if(ev >= TIERS.lean.ev && conf >= TIERS.lean.conf) t = "LEAN";
+  if(ev >= TIERS.strong.ev && conf >= TIERS.strong.conf) t = "STRONG BET";
+  if(ev >= TIERS.elite.ev && conf >= TIERS.elite.conf) t = "ELITE EDGE";
+  if(!unlocked && (t === "STRONG BET" || t === "ELITE EDGE")) t = "LEAN";
+  return t;
+}
+function priceFor(v){ return v == null ? {price: -110, assumed: true} : {price: v, assumed: false}; }
+function pickEconomics(g){
+  const m = g.m, mk = g.market || {}, out = {};
+  if(m.pickSide && m.pCover){
+    const pr = priceFor(m.pickSide === "home" ? mk.spreadPriceHome : mk.spreadPriceAway), p = m.pickSide === "home" ? m.pCover.home : m.pCover.away;
+    out.spread = Object.assign({p, push: m.pCover.push, be: beProb(pr.price), edge: p - beProb(pr.price), ev: evUnit(p, pr.price, m.pCover.push)}, pr);
+  }
+  if(m.totalPick && m.pTotal){
+    const over = m.totalPick === "Over", pr = priceFor(over ? mk.overPrice : mk.underPrice), p = over ? m.pTotal.over : m.pTotal.under;
+    out.total = Object.assign({p, push: m.pTotal.push, be: beProb(pr.price), edge: p - beProb(pr.price), ev: evUnit(p, pr.price, m.pTotal.push)}, pr);
+  }
+  if(mk.mlHome != null && mk.mlAway != null){
+    const home = m.winner === "home", price = home ? mk.mlHome : mk.mlAway, p = home ? m.pHome : 1 - m.pHome, dv = devig(mk.mlHome, mk.mlAway);
+    out.ml = {p, price, assumed: false, be: beProb(price), marketP: home ? dv.a : dv.b, hold: dv.hold, edge: p - (home ? dv.a : dv.b), ev: evUnit(p, price)};
+  }
+  return out;
+}
+// 1-100 reliability of the inputs behind a game prediction. It is NOT a probability of winning.
+function gameConfidence(g){
+  const m = g.m, mx = g.mx, mk = g.market || {};
+  const sample = Math.min(Math.min(m.gamesH, m.gamesA), 10) / 10;
+  const margins = [m.margin, mx.margin, m.miMargin != null ? m.miMargin : m.margin];
+  const agree = 1 - Math.min(1, (Math.max.apply(null, margins) - Math.min.apply(null, margins)) / (0.5 * m.sdM));
+  const measured = m.sdMeasured ? 1 : 0.4;
+  const line = (mk.homeLine != null ? 0.6 : 0) + (mk.spreadPriceHome != null ? 0.4 : 0.1);
+  const avail = LG.id !== "nfl" ? 0.3 : (Object.keys(INJ).length ? (g.avail && g.avail.unresolved ? 0.2 : 1) : 0.4);
+  return clamp(Math.round(25 * sample + 25 * agree + 15 * measured + 15 * line + 20 * avail), 1, 99);
+}
+
 /* ---------------------------- model: ratings engine ---------------------------- */
 // Two runs over the same games: the headline model (ratings only) and an experimental one that adds the
 // hand-set schedule, weather and injury adjustments. Each run only uses games played before each week.
@@ -679,6 +755,7 @@ function predict(g, S, mu, key, useFactors, kMI){
     gamesH: S.n[g.home.code] || 0, gamesA: S.n[g.away.code] || 0,
     streak: {home: strk(S, g.home.code), away: strk(S, g.away.code)}};
   m.pHome = cdf(margin / sdM);
+  if(S.platt) m.pHomeCal = applyPlatt(m.pHome, S.platt);   // calibration fit on earlier games only
   m.winner = margin >= 0 ? "home" : "away";
   m.winProb = Math.max(m.pHome, 1 - m.pHome);
   const mk = g.market;
@@ -706,9 +783,10 @@ function predict(g, S, mu, key, useFactors, kMI){
 function gradeGame(g, m){
   const hs = g.home.score, as = g.away.score;
   if(hs == null || as == null || g.voided) return;
-  if(m.pickSide) m.ats = gradeATS(hs - as, g.market.homeLine, m.pickSide);
-  if(m.totalPick) m.ou = gradeTotal(hs + as, g.market.total, m.totalPick);
-  if(hs !== as) m.ml = (hs > as ? "home" : "away") === m.winner ? "W" : "L";
+  const mk = g.market || {};
+  if(m.pickSide){ m.ats = gradeATS(hs - as, mk.homeLine, m.pickSide); m.atsPrice = m.pickSide === "home" ? mk.spreadPriceHome : mk.spreadPriceAway; }
+  if(m.totalPick){ m.ou = gradeTotal(hs + as, mk.total, m.totalPick); m.ouPrice = m.totalPick === "Over" ? mk.overPrice : mk.underPrice; }
+  if(hs !== as){ m.ml = (hs > as ? "home" : "away") === m.winner ? "W" : "L"; m.mlPrice = m.winner === "home" ? mk.mlHome : mk.mlAway; }
 }
 function learn(g, S, key){
   const m = g[key], h = g.home.code, a = g.away.code;
@@ -724,6 +802,7 @@ function learn(g, S, key){
   const bump = (c, v) => { const t = v > 0 ? "W" : v < 0 ? "L" : "T", cur = S.str[c]; S.str[c] = cur && cur.t === t ? {t, n: cur.n + 1} : {t, n: 1}; };
   bump(h, actual); bump(a, -actual);
   S.resM.push(miss); S.resT.push(g.home.score + g.away.score - m.total);
+  if(actual !== 0){ S.calP.push(m.pHome); S.calY.push(actual > 0 ? 1 : 0); }
   if(key === "m" && g.market && g.market.homeLine != null){
     const L = -g.market.homeLine, x = m.margin - L, y = actual - L;
     S.k.x2 += x * x; S.k.xy += x * y; S.k.n++;
@@ -764,11 +843,12 @@ function qualify(g){
 }
 function runModel(slotGames){
   const run = (key, useFactors) => {
-    const S = {off:{}, def:{}, n:{}, sum:0, cnt:0, last:{}, form:{}, str:{}, resM:[], resT:[], k:{x2:0, xy:0, n:0}};
+    const S = {off:{}, def:{}, n:{}, sum:0, cnt:0, last:{}, form:{}, str:{}, resM:[], resT:[], k:{x2:0, xy:0, n:0}, calP:[], calY:[], platt:null};
     slotGames.forEach(games => {
       const mu = S.cnt >= LG.muMin ? S.sum / S.cnt : BASE_MU;
       S.sdM = S.resM.length >= MIN_SD ? rmse(S.resM) : LG.sd;          // measured on earlier weeks, else assumed
       S.sdT = S.resT.length >= MIN_SD ? rmse(S.resT) : LG.sdTotal;
+      S.platt = S.calP.length >= MIN_CAL ? fitPlatt(S.calP, S.calY) : null;
       const kMI = S.k.n >= 20 && S.k.x2 > 0 ? clamp(S.k.xy / S.k.x2, 0, 1) : 0;   // 0 until 20 graded games: equals the market line
       games.forEach(g => predict(g, S, mu, key, useFactors, kMI));
       const done = games.filter(g => g.completed && !g.voided && g.home.score != null && g.away.score != null);
@@ -780,7 +860,7 @@ function runModel(slotGames){
   const S0 = run("m", false);
   run("mx", true);
   RES = {nM: S0.resM.length, nT: S0.resT.length, sdM: rmse(S0.resM), sdT: rmse(S0.resT), k: S0.k.n >= 20 && S0.k.x2 > 0 ? clamp(S0.k.xy / S0.k.x2, 0, 1) : 0, kN: S0.k.n};
-  slotGames.forEach(games => games.forEach(g => { g.avail = qbScenarios(g); g.q = qualify(g); }));
+  slotGames.forEach(games => games.forEach(g => { g.avail = qbScenarios(g); g.q = qualify(g); g.conf = gameConfidence(g); }));
 }
 
 /* ---------------------------- archive: frozen pregame predictions (this browser only) ---------------------------- */
@@ -816,8 +896,19 @@ function gradeArchived(rec, g){
   if(hs == null || as == null || g.voided || !rec.baseline) return null;
   const out = {edge: rec.baseline.edge, q: rec.qualified};
   if(hs !== as) out.ml = (hs > as ? "home" : "away") === rec.baseline.mlPick ? "W" : "L";
-  if(rec.market && rec.market.homeLine != null && rec.baseline.spreadPick) out.ats = gradeATS(hs - as, rec.market.homeLine, rec.baseline.spreadPick.side);
-  if(rec.market && rec.market.total != null && rec.baseline.totalPick) out.ou = gradeTotal(hs + as, rec.market.total, rec.baseline.totalPick);
+  const mk = rec.market || {}, close = g.market || {};
+  if(hs !== as && rec.baseline.mlPick) out.mlPrice = rec.baseline.mlPick === "home" ? mk.mlHome : mk.mlAway;
+  if(mk.homeLine != null && rec.baseline.spreadPick){
+    const side = rec.baseline.spreadPick.side;
+    out.ats = gradeATS(hs - as, mk.homeLine, side);
+    out.atsPrice = side === "home" ? mk.spreadPriceHome : mk.spreadPriceAway;
+    if(close.homeLine != null) out.clv = side === "home" ? mk.homeLine - close.homeLine : close.homeLine - mk.homeLine;   // points gained versus the closing number
+  }
+  if(mk.total != null && rec.baseline.totalPick){
+    out.ou = gradeTotal(hs + as, mk.total, rec.baseline.totalPick);
+    out.ouPrice = rec.baseline.totalPick === "Over" ? mk.overPrice : mk.underPrice;
+    if(close.total != null) out.clvT = rec.baseline.totalPick === "Over" ? close.total - mk.total : mk.total - close.total;
+  }
   return out;
 }
 function attachArchive(slots){
@@ -830,7 +921,9 @@ let resMode = "recon";   // "recon" = reconstructed backtest, "arch" = archived 
 const recOf = g => resMode === "arch" ? g.arch : g.m;
 const qualOf = g => resMode === "arch" ? !!(g.arch && g.arch.q) : !!(g.q && g.q.ok);
 function tally(list){
-  const r = {n: 0, mlW: 0, mlL: 0, atsW: 0, atsL: 0, atsP: 0, ouW: 0, ouL: 0, ouP: 0, qW: 0, qL: 0, qP: 0};
+  const r = {n: 0, mlW: 0, mlL: 0, atsW: 0, atsL: 0, atsP: 0, ouW: 0, ouL: 0, ouP: 0, qW: 0, qL: 0, qP: 0,
+    roi: {ml: {n: 0, profit: 0}, ats: {n: 0, profit: 0}, ou: {n: 0, profit: 0}, q: {n: 0, profit: 0}}, clvN: 0, clvSum: 0, clvPos: 0, qBe: 0};
+  const money = (bucket, res, price) => { if(price == null || !res) return; r.roi[bucket].n++; r.roi[bucket].profit += profitUnit(res, price); };
   list.forEach(g => {
     if(!g.completed || g.voided) return;
     const m = recOf(g); if(!m) return;
@@ -838,6 +931,9 @@ function tally(list){
     if(m.ml === "W") r.mlW++; else if(m.ml === "L") r.mlL++;
     if(m.ats){ r["ats" + m.ats]++; if(qualOf(g)) r["q" + m.ats]++; }
     if(m.ou) r["ou" + m.ou]++;
+    money("ml", m.ml, m.mlPrice); money("ats", m.ats, m.atsPrice); money("ou", m.ou, m.ouPrice);
+    if(m.ats && qualOf(g)){ money("q", m.ats, m.atsPrice); if(m.atsPrice != null) r.qBe += beProb(m.atsPrice); }
+    if(m.clv != null){ r.clvN++; r.clvSum += m.clv; if(m.clv > 0) r.clvPos++; }
   });
   const rate = (w, l) => (w + l) ? w / (w + l) : null;
   r.mlPct = rate(r.mlW, r.mlL); r.atsPct = rate(r.atsW, r.atsL); r.ouPct = rate(r.ouW, r.ouL); r.qPct = rate(r.qW, r.qL);
@@ -888,7 +984,9 @@ function evaluate(list){
       if(b) b[g.m.ats === "W" ? "w" : "l"]++;
     } else if(g.m.ats === "P"){ const b = gap.find(x => g.m.edge >= x.lo && g.m.edge < x.hi); if(b) b.p++; }
   });
-  return {rows, cal, gap, n: done.length};
+  const calRows = done.filter(g => g.m.pHomeCal != null && g.market && g.market.mlHome != null && g.home.score !== g.away.score);
+  const brierOf = (arr, f) => arr.length ? arr.reduce((a, g) => { const y = g.home.score > g.away.score ? 1 : 0, p = f(g); return a + (p - y) * (p - y); }, 0) / arr.length : null;
+  return {rows, cal, gap, n: done.length, platt: {n: calRows.length, raw: brierOf(calRows, g => g.m.pHome), fixed: brierOf(calRows, g => g.m.pHomeCal)}};
 }
 const pct = p => p == null ? "\u2014" : (p * 100).toFixed(1) + "%";
 
@@ -896,7 +994,7 @@ const pct = p => p == null ? "\u2014" : (p * 100).toFixed(1) + "%";
 let SLOTS = [], GAMES = [], selIdx = 0, followLatest = true;
 let dayFilter = "All", sortBy = "time", edgeOnly = false, rankedOnly = false, searchText = "", lastUpdated = null, timer = null;
 
-const slotLabel = s => s.type === 3 ? (LG.po[s.week] || "Postseason") : `Week ${s.week}`;
+const slotLabel = s => s.label ? s.label : s.type === 3 ? (LG.po[s.week] || "Postseason") : `Week ${s.week}`;
 
 /* ---------------------------- formatting ---------------------------- */
 const fmtSpread = v => v === 0 ? "PK" : (v > 0 ? "+" : "\u2212") + Math.abs(v).toFixed(1);
@@ -953,7 +1051,7 @@ function renderHero(){
   const games = GAMES, slot = SLOTS[selIdx];
   const label = slotLabel(slot);
   document.getElementById("heroTitle").textContent = label;
-  document.getElementById("heroLeague").textContent = LG.id === "nfl" ? "NFL" : "College football";
+  document.getElementById("heroLeague").textContent = LG.name;
   document.getElementById("gamesTitle").textContent = `${label} games`;
   const live = games.some(g => g.state === "in");
   let range = "";
@@ -981,11 +1079,54 @@ function renderHero(){
     </a>`).join("") : `<p class="note">No qualified picks right now. That is a normal result: the board only lists games that clear the rules, and it never fills a quota.</p>`;
 }
 
+function reviewHtml(all){
+  const slots = SLOTS.filter(sl => (sl._games || []).some(g => g.completed && !g.voided && g.m && g.m.ats && g.m.ats !== "P"));
+  if(!slots.length) return `<p>No graded spread picks yet, so there is nothing to review.</p>`;
+  const decided = list => list.filter(g => g.completed && !g.voided && g.m && g.m.ats && g.m.ats !== "P");
+  const stat = list => {
+    const n = list.length, w = list.filter(g => g.m.ats === "W").length;
+    let exp = 0, vr = 0;
+    list.forEach(g => { const pp = g.m.pCoverPick == null ? 0.5 : g.m.pCoverPick / Math.max(1e-6, 1 - (g.m.pCover ? g.m.pCover.push : 0)); exp += pp; vr += pp * (1 - pp); });
+    const z50 = n ? (w - n / 2) / Math.sqrt(n / 4) : 0, zM = vr ? (w - exp) / Math.sqrt(vr) : 0;
+    return {n, w, exp, z50, zM, p50: 2 * (1 - cdf(Math.abs(z50))), pM: 2 * (1 - cdf(Math.abs(zM)))};
+  };
+  const last = slots[slots.length - 1], wk = decided(last._games), season = decided(SLOTS.flatMap(sl => sl._games || []));
+  const sw = stat(wk), ss = stat(season);
+  const verdict = x => x.p50 >= 0.05 ? "within normal variance for a 50% coin" : "unusual compared with a 50% coin";
+  const classify = g => {
+    const m = g.m, mk = g.market || {}, c = Math.abs((g.home.score - g.away.score) + mk.homeLine);
+    if(m.gamesH < LG.minGames || m.gamesA < LG.minGames) return "Thin data: a team had too few games for a stable rating";
+    if(mk.openHomeLine != null && mk.homeLine != null){
+      const d = mk.homeLine - mk.openHomeLine;
+      if(m.pickSide === "home" ? d >= 1 : d <= -1) return "Market moved against the pick by a point or more";
+    }
+    if(m.edge >= 2 * LG.edgeMin) return "Large disagreement with the market (the market is usually right in these)";
+    if(c <= 3) return "Narrow loss (missed the number by 3 or fewer)";
+    return "Ordinary loss within expected variance";
+  };
+  const cats = {};
+  wk.filter(g => g.m.ats === "L").forEach(g => { const k = classify(g); cats[k] = (cats[k] || 0) + 1; });
+  const catRows = Object.keys(cats).map(k => `<p>${esc(k)}: ${cats[k]}</p>`).join("") || "<p>No losses in this period.</p>";
+  const pf = v => v < 0.001 ? "under 0.1%" : (v * 100).toFixed(1) + "%";
+  return `<p><b>Latest period with graded picks: ${esc(slotLabel(last))}.</b> Spread picks (pushes excluded): ${sw.n}, covered ${sw.w} (${sw.n ? pct(sw.w / sw.n) : "-"}).</p>
+    <p>Against a 50% coin the expected cover count is ${(sw.n / 2).toFixed(1)}; against the model's own cover estimates it is ${sw.exp.toFixed(1)}. The result is ${verdict(sw)} (chance of a gap this large or larger from luck alone: ${pf(sw.p50)}).</p>
+    <p>Whole season so far: ${ss.n} picks, covered ${ss.w} (${ss.n ? pct(ss.w / ss.n) : "-"}); ${verdict(ss)} (${pf(ss.p50)}). Versus the model's own estimates the gap is ${ss.zM >= 0 ? "+" : "\u2212"}${Math.abs(ss.zM).toFixed(1)} standard deviations, ${Math.abs(ss.zM) < 1.96 ? "so the model's cover estimates are not contradicted yet" : "so the model's cover estimates look off and need a closer look"}.</p>
+    <p><b>Losses in ${esc(slotLabel(last))} by identifiable cause</b></p>${catRows}
+    <p><b>Cannot be assessed with the records that exist:</b> injury and inactive-list errors, playing-time assumptions, matchup analysis and the price paid. Pregame injury, lineup and price records for past games were never saved, and the ESPN feed reports a single price. Archived pregame predictions will make these checkable over time.</p>
+    <p>One bad week is not evidence by itself that the model is broken, and the model is not retrained automatically. A change needs a head-to-head comparison on games it wasn't fit on.</p>`;
+}
 function sourcesHtml(){
   const t = lastUpdated ? lastUpdated.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "not yet";
   const tag = (k, label) => `<span class="tag ${k}">${label}</span>`;
   const injOn = Object.keys(INJ).length > 0;
-  const rows = LG.id === "nfl" ? [
+  const rows = LG.id === "nba" ? [
+    ["ESPN scoreboard (by date)", "Schedule, tip time (UTC), status, scores, records, odds, team leaders", "Regular season to date, grouped by Eastern-time day", `Each page load (${t})`, tag("live", "Live"), "Unofficial public endpoint. No key, no cost, no uptime or licensing guarantee. Preseason games are excluded."],
+    ["ESPN odds (inside the scoreboard)", "Spread, total, moneyline, some prices, opening values", "One provider per game", `Each page load (${t})`, tag("live", "Live, limited"), "No timestamp from ESPN, so Pointwise stamps first sighting."],
+    ["ESPN injury feed", "Player, position, status, report date", "Current report only", injOn ? "Every 15 minutes" : "Not loading", injOn ? tag("exp", "Experimental") : tag("na", "Unavailable"), "Used only to flag player availability on props. It is not in the game model because injury impact sizes for the NBA are not fitted."],
+    ["ESPN player game logs", "Points, rebounds, assists, minutes per game", "Current season", "Cached 6 hours", tag("exp", "Experimental"), "Field names are read from the feed; if a name changes the prop shows an error instead of guessing."],
+    ["Lineups, minutes, usage, tracking data", "Confirmed starters, rotation, usage rate, potential assists, rim protection", "-", "-", tag("na", "Not connected"), "Needs the official NBA stats API or a licensed provider plus a scheduled job."],
+    ["Line history and multiple sportsbooks", "Opening to close by book, prices over time, prop lines", "-", "-", tag("na", "Not connected"), "Needs a paid odds provider. An optional odds key can be added below."]
+  ] : LG.id === "nfl" ? [
     ["ESPN scoreboard", "Schedule, kickoff time (UTC), status, scores, records", "This season, week by week", `Each page load (${t})`, tag("live", "Live"), "Unofficial public endpoint. No key and no cost, but no uptime or licensing guarantee."],
     ["ESPN odds (inside the scoreboard)", "Spread, total, moneyline, some prices, opening values", "One provider per game", `Each page load (${t})`, tag("live", "Live, limited"), "ESPN gives no timestamp for a line, so Pointwise stamps the time it first saw it. For finished games the last reported line may not be the true close."],
     ["ESPN injury feed", "Player, position, status, report date", "Current report only, no history", injOn ? "Every 15 minutes" : "Not loading", injOn ? tag("exp", "Experimental") : tag("na", "Unavailable"), "Not officially documented. No practice participation or depth information, so a backup listed out looks like a starter listed out."],
@@ -1026,9 +1167,10 @@ function compareHtml(E){
   <div class="tablewrap" style="padding:0"><table style="min-width:420px"><thead><tr><th>Model said</th><th>Games</th><th>Average said</th><th>Actually won</th></tr></thead><tbody>${cal}</tbody></table></div>
   <p><b>Spread results by model-market gap</b> (ratings model)</p>
   <div class="tablewrap" style="padding:0"><table style="min-width:420px"><thead><tr><th>Gap</th><th>Decisions</th><th>Pushes</th><th>Cover rate</th></tr></thead><tbody>${gap}</tbody></table></div>
+  <p><b>Calibration layer.</b> ${E.platt.n ? `Platt scaling, fit on earlier games only. On the ${E.platt.n} later games where it applied: Brier ${f3(E.platt.raw)} raw versus ${f3(E.platt.fixed)} calibrated.` : `Not active yet: it needs ${MIN_CAL} graded games to fit, and it is never fit on the games it is judged on.`}</p>
   <p><b>Uncertainty.</b> The ratings model's typical margin error is ${RES.sdM == null ? "-" : RES.sdM.toFixed(1)} points and total error ${RES.sdT == null ? "-" : RES.sdT.toFixed(1)} points over ${RES.nM} games. The spread used for probabilities is ${sdLine}.</p>
   <p><b>Market-informed model.</b> It uses the line plus a share k of the model's disagreement. k is re-fit each week on earlier games only and stays at 0, which equals the market line, until 20 games exist. Current k: ${RES.k.toFixed(2)} from ${RES.kN} games.</p>
-  <p><b>Feature groups.</b> The adjusted row adds ${LG.id === "nfl" ? "rest, travel, altitude and recent form" : "rest and recent form"} to the ratings model. Injury, forecast-weather and quarterback-scenario adjustments only exist for upcoming games, so they cannot be tested until archived predictions pile up. Differences between rows are small next to the sampling noise at this sample size.</p>
+  <p><b>Feature groups.</b> The adjusted row adds ${LG.id === "nfl" ? "rest, travel, altitude and recent form" : LG.id === "nba" ? "back-to-back rest and recent form" : "rest and recent form"} to the ratings model. Injury, forecast-weather and quarterback-scenario adjustments only exist for upcoming games, so they cannot be tested until archived predictions pile up. Differences between rows are small next to the sampling noise at this sample size.</p>
   <p><b>Testing design.</b> Every week uses only earlier weeks (chronological walk-forward). A separate untouched test period is not possible with a single partial season, and no selection threshold has been learned yet, so none of this is a validated upgrade.</p>`;
 }
 function renderRecord(){
@@ -1044,24 +1186,38 @@ function renderRecord(){
              : "No archived pregame predictions have been graded yet. A prediction is saved the first time this page loads before a game kicks off, and finished games appear here after that.")
     : "Reconstructed backtest: each pick is rebuilt after the fact from ratings that use only earlier games, and graded against the last line ESPN reports. It is not a live track record.";
   const kinds = {ml: "Win rate", ats: "Cover rate", ou: "Hit rate", edge: "Cover rate"};
-  const tile = (title, kind, p, w, l, extra) => {
+  const roiTxt = ro => ro && ro.n ? `. Return per unit staked: ${ro.profit >= 0 ? "+" : "\u2212"}${Math.abs(ro.profit / ro.n * 100).toFixed(1)}% over ${ro.n} priced ${ro.n === 1 ? "game" : "games"}` : ". No recorded prices, so return can't be calculated";
+  const tile = (title, kind, p, w, l, extra, ro) => {
     const n = w + l, ci = wilson(w, n);
     return `<div class="tile">${ring(p, kind)}<div class="tx"><div class="k">${title}</div><div class="rl">${kinds[kind]}</div>
-      <div class="sub">${n} ${n === 1 ? "game" : "games"} counted${extra || ""}${ci ? `. 95% range ${pct(ci[0])} to ${pct(ci[1])}` : ""}</div></div></div>`;
+      <div class="sub">${n} ${n === 1 ? "game" : "games"} counted${extra || ""}${ci ? `. 95% range ${pct(ci[0])} to ${pct(ci[1])}` : ""}${roiTxt(ro)}</div></div></div>`;
   };
   const push = n => n ? `, ${n} ${n === 1 ? "push" : "pushes"} left out` : "";
   document.getElementById("tiles").innerHTML =
-    tile("Moneyline, all games", "ml", r.mlPct, r.mlW, r.mlL, "") +
-    tile("Against the spread, all games", "ats", r.atsPct, r.atsW, r.atsL, push(r.atsP)) +
-    tile("Totals, all games", "ou", r.ouPct, r.ouW, r.ouL, push(r.ouP)) +
-    tile("Qualified spread picks only", "edge", r.qPct, r.qW, r.qL, push(r.qP));
+    tile("Moneyline, all games", "ml", r.mlPct, r.mlW, r.mlL, "", r.roi.ml) +
+    tile("Against the spread, all games", "ats", r.atsPct, r.atsW, r.atsL, push(r.atsP), r.roi.ats) +
+    tile("Totals, all games", "ou", r.ouPct, r.ouW, r.ouL, push(r.ouP), r.roi.ou) +
+    tile("Qualified spread picks only", "edge", r.qPct, r.qW, r.qL, push(r.qP), r.roi.q);
+  if(PROP_SETS[LG.id]){
+    const pt = propTally(), pci = wilson(pt.w, pt.w + pt.l);
+    TIER_UNLOCK.props = (pt.w + pt.l) >= MIN_CAL && !!pci && pci[0] > (pt.roi.n ? pt.be / pt.roi.n : 0.5238);
+    document.getElementById("tiles").innerHTML += tile("Player props, archived lines", "ats", pt.rate, pt.w, pt.l, pt.p ? `, ${pt.p} ${pt.p === 1 ? "push" : "pushes"} left out` : "", pt.roi)
+      .replace("Cover rate", "Hit rate").replace(" games counted", pt.n ? " props graded" : " props graded. Enter a line before kickoff to start the record");
+  } else TIER_UNLOCK.props = false;
+  document.getElementById("clvNote").textContent = resMode === "arch"
+    ? (r.clvN ? `Closing-line value: on average ${r.clvSum / r.clvN >= 0 ? "+" : "\u2212"}${Math.abs(r.clvSum / r.clvN).toFixed(2)} points versus the closing spread across ${r.clvN} archived picks; ${pct(r.clvPos / r.clvN)} beat the close. Positive means the number saved at prediction time was better than the closing number.`
+               : "Closing-line value appears once an archived pick's game has finished.")
+    : "Closing-line value needs the line saved at prediction time, so it is only shown for archived pregame predictions.";
+  const ar = (() => { const prev = resMode; resMode = "arch"; const t = tally(all); resMode = prev; return t; })();
+  const arN = ar.qW + ar.qL, arCi = wilson(ar.qW, arN);
+  TIER_UNLOCK.games = arN >= MIN_CAL && !!arCi && arCi[0] > (ar.roi.q.n ? ar.qBe / ar.roi.q.n : 0.5238);
   document.getElementById("factorNote").textContent =
     "Headline picks use team ratings only. Schedule, weather and injury adjustments are experimental, shown in each game's research panel, and do not change the picks. Qualification thresholds are placeholders that have not been learned from data.";
 
   const rows = SLOTS.map(sl => ({s: sl, t: tally(sl._games || [])})).filter(x => x.t.n > 0);
   document.getElementById("weeklyTable").innerHTML = rows.length ? `
-    <table><thead><tr><th>Week</th><th>Moneyline win rate</th><th>ATS cover rate</th><th>Totals hit rate</th><th>Qualified cover rate</th><th>Games graded</th></tr></thead><tbody>
-    ${rows.map(({s: sl, t}) => `<tr><td>${esc(slotLabel(sl))}</td><td>${pct(t.mlPct)}</td><td>${pct(t.atsPct)}</td><td>${pct(t.ouPct)}</td><td>${pct(t.qPct)}</td><td>${t.n}</td></tr>`).join("")}
+    <table><thead><tr><th>${LG.daily ? "Day" : "Week"}</th><th>Moneyline win rate</th><th>ATS cover rate</th><th>Totals hit rate</th><th>Qualified cover rate</th><th>Games graded</th></tr></thead><tbody>
+    ${(LG.daily ? rows.slice(-21) : rows).map(({s: sl, t}) => `<tr><td>${esc(slotLabel(sl))}</td><td>${pct(t.mlPct)}</td><td>${pct(t.atsPct)}</td><td>${pct(t.ouPct)}</td><td>${pct(t.qPct)}</td><td>${t.n}</td></tr>`).join("")}
     <tr class="total"><td>Season</td><td>${pct(r.mlPct)}</td><td>${pct(r.atsPct)}</td><td>${pct(r.ouPct)}</td><td>${pct(r.qPct)}</td><td>${r.n}</td></tr>
     </tbody></table>` : `<p class="note" style="padding:4px 0 8px">Percentages will show up here once the first games are final.</p>`;
 
@@ -1077,6 +1233,7 @@ function renderRecord(){
     <p><b>Timing and leakage.</b> The backtest rebuilds each pick using only games played before that week. It grades against the latest line ESPN reports, which may not be the line available at the time. Archived predictions keep the line seen at prediction time.</p>
     <p>These are historical rates. They don't predict whether the next pick will win.</p>`;
 
+  document.getElementById("reviewBody").innerHTML = reviewHtml(all);
   document.getElementById("compareBody").innerHTML = resMode === "recon" ? compareHtml(evaluate(all)) : `<p>The comparison uses the reconstructed backtest. Switch to Reconstructed backtest above to see it.</p>`;
   document.getElementById("sourcesBody").innerHTML = sourcesHtml();
 }
@@ -1139,6 +1296,17 @@ function whyHtml(g){
   if(m.pCover) pl.push(`At ${esc(g.home.code)} ${fmtSpread(mk.homeLine)}: ${esc(g.home.code)} covers ${P(m.pCover.home)}, ${esc(g.away.code)} covers ${P(m.pCover.away)}${m.pCover.push ? `, push ${P(m.pCover.push)}` : ""}`);
   if(m.pTotal) pl.push(`At total ${mk.total.toFixed(1)}: Over ${P(m.pTotal.over)}, Under ${P(m.pTotal.under)}${m.pTotal.push ? `, push ${P(m.pTotal.push)}` : ""}`);
   out.push(sec("Probabilities", `<p>${pl.join(".</p><p>")}.</p><p class="note">${RES.nM >= MIN_CAL ? `Checked against ${RES.nM} graded games, see the calibration table above.` : `Model estimates, not yet calibrated: ${RES.nM} of ${MIN_CAL} graded games needed before these can be called probabilities.`}</p>`));
+  if(m.pHomeCal != null) out.push(sec("Calibrated win probability", `<p>${esc(g.home.code)} ${P(m.pHomeCal)}, ${esc(g.away.code)} ${P(1 - m.pHomeCal)}. A Platt calibration layer, fit only on earlier games, adjusted the raw ${P(m.pHome)}.</p>`));
+  const econ = pickEconomics(g), ppts = v => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v * 100).toFixed(1)} points`;
+  const pt = e => `${fmtML(e.price)}${e.assumed ? " (assumed: the feed reported no price)" : ""}`;
+  const vl = [];
+  if(econ.spread) vl.push(`Spread pick ${esc(pickText(g))} at ${pt(econ.spread)}: break-even ${P(econ.spread.be)}, model cover ${P(econ.spread.p)}, edge ${ppts(econ.spread.edge)}, expected value ${fmtEV(econ.spread.ev)} per unit staked`);
+  if(econ.total) vl.push(`${m.totalPick} ${mk.total.toFixed(1)} at ${pt(econ.total)}: break-even ${P(econ.total.be)}, model ${P(econ.total.p)}, edge ${ppts(econ.total.edge)}, expected value ${fmtEV(econ.total.ev)} per unit`);
+  if(econ.ml) vl.push(`Moneyline ${esc(teamOf(g, m.winner).code)} at ${fmtML(econ.ml.price)}: break-even ${P(econ.ml.be)}, market-implied after removing the margin ${P(econ.ml.marketP)} (margin ${(econ.ml.hold * 100).toFixed(1)}%), model ${P(econ.ml.p)}, edge versus market ${ppts(econ.ml.edge)}, expected value ${fmtEV(econ.ml.ev)} per unit`);
+  out.push(sec("Price and value", vl.length ? `<p>${vl.join(".</p><p>")}.</p><p class="note">Value is only valid at the price shown. If the line or price moves, it must be recomputed. These are model estimates, not proven profit.</p>` : `<p>No line posted, so no value can be computed.</p>`));
+  const rawTier = econ.spread ? tierOf(econ.spread.ev, g.conf, true) : "PASS", shownTier = econ.spread ? tierOf(econ.spread.ev, g.conf, TIER_UNLOCK.games) : "PASS";
+  out.push(sec("Confidence and recommendation", `<p>Confidence rating ${g.conf}/100. It rates how reliable the inputs are: sample size, agreement among the three models, measured versus assumed error, line and price availability, and injury information. It is not a probability of winning and has not been validated against outcomes.</p>
+    <p>Recommendation: <b>${q.ok ? shownTier : "PASS"}</b>${q.ok && rawTier !== shownTier ? ` (the rules point to ${rawTier}, but tiers above LEAN stay locked until archived results justify them)` : ""}. Tier thresholds are placeholders.</p>`));
   const fl = mx.factors || [];
   if(fl.length){
     const sup = [], opp = [], tot = [];
@@ -1169,17 +1337,24 @@ function whyHtml(g){
   if(mk && mk.total == null) miss.push("Total not posted");
   if(mk && mk.spreadPriceHome == null) miss.push("This feed does not report spread or total prices");
   if(LG.id === "nfl"){ if(!Object.keys(INJ).length) miss.push("Injury feed unavailable"); if(!g.completed && !g.weather) miss.push("No weather forecast (domed, neutral site or unavailable)"); miss.push("Not connected: EPA per play, success rate, pressure and sack rates, depth charts, confirmed starters"); }
+  else if(LG.id === "nba") miss.push(Object.keys(INJ).length ? "Injury feed is used for flags only, not in the game model" : "Injury feed unavailable", "Not connected: confirmed lineups, projected minutes, usage, pace and tracking data, rest-and-travel detail beyond back-to-backs");
   else miss.push("No injury, weather or travel data for college football", "Not connected: EPA per play, success rate, returning production, transfers, recruiting");
   out.push(sec("Missing or stale information", `<p>${miss.map(esc).join("</p><p>")}</p>`));
   const upd = lastUpdated ? ` (loaded ${esc(lastUpdated.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}))})` : "";
-  out.push(sec("Sources", `<p><a href="${esc(API)}/scoreboard" target="_blank" rel="noopener">ESPN scoreboard</a>${upd}${LG.id === "nfl" ? `, <a href="${esc(API)}/injuries" target="_blank" rel="noopener">ESPN injuries</a>, <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>` : ""}.</p>`));
+  out.push(sec("Sources", `<p><a href="${esc(API)}/scoreboard" target="_blank" rel="noopener">ESPN scoreboard</a>${upd}${LG.id !== "cfb" ? `, <a href="${esc(API)}/injuries" target="_blank" rel="noopener">ESPN injuries</a>` : ""}${LG.id === "nfl" ? `, <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>` : ""}.</p>`));
   return `<details class="why"><summary>Research panel</summary><div class="rp">${out.join("")}</div></details>`;
 }
+const fmtEV = v => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v * 100).toFixed(1)}%`;
 function spreadBlock(g){
-  const m = g.m, mk = g.market || {}, q = g.q || {ok: false, reasons: []};
+  const m = g.m, mk = g.market || {}, q = g.q || {ok: false, reasons: []}, ec = pickEconomics(g).spread;
   if(m.edge == null) return `<div><div class="l">Spread</div><div class="v small">No line posted</div><div class="sub">No pick without a line.</div></div>`;
-  if(q.ok) return `<div><div class="l">Qualified spread pick</div><div class="v flag">${esc(pickText(g))}${pill(m.ats)}</div>
-    <div class="sub">${m.edge.toFixed(1)}-point gap${m.pCoverPick != null ? ` \u00b7 model cover estimate ${Math.round(m.pCoverPick * 100)}%, uncalibrated` : ""}${m.totalLean ? ` \u00b7 total leans ${m.totalLean} ${mk.total.toFixed(1)}` : ""}</div></div>`;
+  if(q.ok && ec){
+    const tier = tierOf(ec.ev, g.conf, TIER_UNLOCK.games);
+    return `<div><div class="l">Qualified spread pick</div><div class="v flag">${esc(pickText(g))}${pill(m.ats)}</div>
+    <div class="sub">${m.edge.toFixed(1)}-point gap \u00b7 model cover estimate ${Math.round(ec.p * 100)}%, uncalibrated${m.totalLean ? ` \u00b7 total leans ${m.totalLean} ${mk.total.toFixed(1)}` : ""}</div>
+    <div class="sub">Expected value ${fmtEV(ec.ev)} per unit at ${fmtML(ec.price)}${ec.assumed ? " (assumed price)" : ""} \u00b7 confidence ${g.conf}/100 \u00b7 ${tier}</div></div>`;
+  }
+  if(q.ok) return `<div><div class="l">Qualified spread pick</div><div class="v flag">${esc(pickText(g))}${pill(m.ats)}</div><div class="sub">${m.edge.toFixed(1)}-point gap \u00b7 confidence ${g.conf}/100</div></div>`;
   return `<div><div class="l">Spread</div><div class="v small">No qualified pick</div>
     <div class="sub">${esc(q.reasons[0] || "")}. Model lean: ${esc(pickText(g))}${pill(m.ats)}</div></div>`;
 }
@@ -1254,7 +1429,8 @@ function renderGamesInner(){
 }
 function renderGames(){ renderGamesInner(); restoreProps(); }
 function renderWeekSelect(){
-  document.getElementById("week").innerHTML = SLOTS.map((s,i) => `<option value="${i}"${i === selIdx ? " selected" : ""}>${esc(slotLabel(s))}</option>`).join("");
+  const idx = SLOTS.map((s, i) => i).filter(i => !LG.daily || i >= SLOTS.length - 30 || i === selIdx);
+  document.getElementById("week").innerHTML = idx.map(i => `<option value="${i}"${i === selIdx ? " selected" : ""}>${esc(slotLabel(SLOTS[i]))}</option>`).join("");
 }
 function renderAll(){
   GAMES = SLOTS[selIdx]._games || [];
@@ -1289,6 +1465,7 @@ async function load(forceLatest){
   catch(e){ if(seq !== loadSeq) return; throw e; }
 }
 async function loadInner(forceLatest, seq){
+  if(LG.daily) return loadDailyInner(forceLatest, seq);
   const slots = await buildSlots();
   if(seq !== loadSeq) return;
   const latest = slots.length - 1;
@@ -1312,16 +1489,72 @@ async function loadInner(forceLatest, seq){
   if(LG.id === "nfl") await Promise.all([loadInjuries(), loadWeather((results[newest] || []).filter(g => !g.completed))]);
   else { INJ = {}; WX_COUNT = 0; }
   if(seq !== loadSeq) return;
+  finishLoad(slots, results, newest, [newest], seq);
+}
+const slotKey = sl => sl.day || `${sl.type}-${sl.week}`;
+const todayET = () => new Date().toLocaleDateString("en-CA", {timeZone: "America/New_York"});
+function defaultIdx(){
+  if(!LG.daily) return SLOTS.length - 1;
+  const t = todayET(), i = SLOTS.findIndex(sl => sl.day >= t);
+  return i >= 0 ? i : SLOTS.length - 1;
+}
+function finishLoad(slots, results, newest, archiveIdx, seq){
   runModel(results);
-  archivePregame(results[newest] || [], slots[newest]);
+  archiveIdx.forEach(i => archivePregame(results[i] || [], slots[i]));
   attachArchive(slots);
-  const prevKey = SLOTS[selIdx] ? `${SLOTS[selIdx].type}-${SLOTS[selIdx].week}` : null;
+  gradePropRecords().then(() => { if(SLOTS.length && PROP_SETS[LG.id]) renderRecord(); }).catch(() => {});
+  const prevKey = SLOTS[selIdx] ? slotKey(SLOTS[selIdx]) : null;
   SLOTS = slots;
-  const found = SLOTS.findIndex(s => `${s.type}-${s.week}` === prevKey);
-  selIdx = (followLatest || found < 0) ? newest : found;
+  const found = SLOTS.findIndex(sl => slotKey(sl) === prevKey);
+  selIdx = (followLatest || found < 0) ? (LG.daily ? defaultIdx() : newest) : found;
   lastUpdated = new Date();
   renderAll();
   schedule();
+}
+
+/* ---- daily slates (NBA): games are grouped by their Eastern-time date ---- */
+const etDay = iso => new Date(iso).toLocaleDateString("en-CA", {timeZone: "America/New_York"});
+const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+async function loadChunk(a, b, force){
+  const key = `pw1:${LG.id}:chunk:${ymd(a)}`, cached = mem.get(key) || store.get(key);
+  if(!force && cached && (cached.final || Date.now() - cached.t < 180000)){ mem.set(key, cached); return cached.games; }
+  const data = await getJSON(`${API}/scoreboard?dates=${ymd(a)}-${ymd(b)}&limit=1000`);
+  const seen = new Set();
+  const games = (data.events || []).filter(ev => !(ev.season && ev.season.type === 1))   // preseason is left out
+    .map(parseEvent).filter(Boolean).filter(g => !seen.has(g.id) && seen.add(g.id));
+  const final = games.length > 0 && b.getTime() < Date.now() - 2 * 864e5 && games.every(g => g.completed || g.voided);
+  const e = {t: Date.now(), final, games}; mem.set(key, e); store.set(key, e);
+  return games;
+}
+async function loadDailyInner(forceLatest, seq){
+  const d = await getJSON(`${API}/scoreboard`);
+  if(seq !== loadSeq) return;
+  const lg = (d.leagues && d.leagues[0]) || {}, now = new Date();
+  let start = lg.calendarStartDate ? new Date(lg.calendarStartDate) : null;
+  if(!start || isNaN(start)) start = new Date(Date.UTC(now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1, 9, 1));
+  const end = new Date(now.getTime() + 3 * 864e5), chunks = [];
+  for(let a = new Date(start); a <= end; a = new Date(a.getTime() + 14 * 864e5)) chunks.push([a, new Date(Math.min(a.getTime() + 13 * 864e5, end.getTime()))]);
+  const last = chunks.length - 1;
+  const parts = await Promise.all(chunks.map((c, i) => loadChunk(c[0], c[1], forceLatest && i >= last - 1).catch(err => { if(i === last) throw err; return []; })));
+  if(seq !== loadSeq) return;
+  const byDay = new Map();
+  parts.reduce((acc, x) => acc.concat(x), []).forEach(g => { g.day = etDay(g.date); if(!byDay.has(g.day)) byDay.set(g.day, []); byDay.get(g.day).push(g); });
+  const days = [...byDay.keys()].sort(), year = (d.season && d.season.year) || now.getUTCFullYear();
+  if(!days.length){
+    SLOTS = []; GAMES = []; lastUpdated = new Date(); clearBoard();
+    document.getElementById("heroTitle").textContent = LG.name;
+    document.getElementById("games").innerHTML = `<p class="empty">The ${esc(LG.name)} regular season hasn't started, so there are no games to project. Preseason games are not used.</p>`;
+    document.getElementById("heroMeta").innerHTML = `<span>No regular-season games found yet</span>`;
+    schedule(); return;
+  }
+  const slots = days.map((day, i) => ({type: 2, week: i + 1, year, day, label: new Date(day + "T12:00:00").toLocaleDateString("en-US", {month: "short", day: "numeric"})}));
+  const results = days.map(day => byDay.get(day));
+  slots.forEach((sl, i) => { sl._games = results[i]; });
+  await loadInjuries();
+  if(seq !== loadSeq) return;
+  WX_COUNT = 0;
+  const t = todayET(), archiveIdx = slots.map((sl, i) => i).filter(i => slots[i].day >= t);
+  finishLoad(slots, results, slots.length - 1, archiveIdx, seq);
 }
 function showError(e){
   const where = location.protocol === "file:" ? "This page is open as a local file. " : "";
@@ -1345,17 +1578,31 @@ function start(){
   load(true).catch(showError);
 }
 
-/* ---------------------------- player props ---------------------------- */
-// Projection = recent-game average (newest games count more), nudged for this game's expected scoring,
-// game script, weather and injuries. Multipliers are hand-set priors, not fitted to past results.
-const PROP_MARKETS = [
-  {key:"passingYards",   lead:"passingYards",   label:"Passing yards",   kind:"pass", elast:0.55, cv:0.28, dec:0},
-  {key:"rushingYards",   lead:"rushingYards",   label:"Rushing yards",   kind:"rush", elast:0.30, cv:0.60, dec:0},
-  {key:"receivingYards", lead:"receivingYards", label:"Receiving yards", kind:"pass", elast:0.55, cv:0.65, dec:0},
-  {key:"receptions",     lead:"receivingYards", label:"Receptions",      kind:"pass", elast:0.45, cv:0.45, dec:1}
-];
-let LINES = store.get("pw1:lines") || {};
-const PROPDATA = {};
+/* ---------------------------- player props: Monte Carlo from each player's own game history ---------------------------- */
+// Each prop is simulated by resampling the player's recent games (newer games count more), scaled for this game's
+// environment, with extra noise so small samples stay honestly wide. No normal curve is assumed. Scaling weights are
+// hand-set priors. Lines and odds come from you (or an odds provider if a key is added); nothing is invented.
+const SIM_N = 50000;
+const PROP_VERSION = "props-mc-1.0";
+const PROP_SETS = {
+  nfl: [
+    {key: "passingYards",   lead: "passingYards",   label: "Passing yards",   kind: "pass", elast: 0.55, cv: 0.28, integer: false},
+    {key: "rushingYards",   lead: "rushingYards",   label: "Rushing yards",   kind: "rush", elast: 0.30, cv: 0.60, integer: false},
+    {key: "receivingYards", lead: "receivingYards", label: "Receiving yards", kind: "pass", elast: 0.55, cv: 0.65, integer: false},
+    {key: "receptions",     lead: "receivingYards", label: "Receptions",      kind: "pass", elast: 0.45, cv: 0.45, integer: true}
+  ],
+  nba: [
+    {key: "points",   lead: "points",   label: "Points",   kind: "nba", elast: 0.35, cv: 0.30, integer: true},
+    {key: "rebounds", lead: "rebounds", label: "Rebounds", kind: "nba", elast: 0.20, cv: 0.38, integer: true},
+    {key: "assists",  lead: "assists",  label: "Assists",  kind: "nba", elast: 0.25, cv: 0.42, integer: true},
+    {key: "pra",      lead: "points",   label: "Points + rebounds + assists", kind: "nba", elast: 0.30, cv: 0.26, integer: true, combo: ["points", "rebounds", "assists"]}
+  ]
+};
+const STAT_ALIASES = {passingYards: ["passingYards"], rushingYards: ["rushingYards"], receivingYards: ["receivingYards"], receptions: ["receptions"],
+  points: ["points"], rebounds: ["totalRebounds", "rebounds"], assists: ["assists"], minutes: ["minutes"]};
+let LINES = store.get("pw2:lines") || {};          // your typed lines/odds: key -> {line, over, under}
+let BOOKPROPS = {};                                  // lines from an odds provider, if configured: key -> {line, over, under, book, updated}
+const PROPDATA = {}, PROPSIM = {}, PROPROWS = {};
 const OPEN_PROPS = new Set();
 
 function numOf(x){ const n = parseFloat(String(x).replace(/,/g, "")); return isNaN(n) ? null : n; }
@@ -1363,24 +1610,25 @@ function parseGamelog(d, year){
   const names = d.names || [], metas = d.events || {}, rows = [];
   (d.seasonTypes || []).forEach(st => {
     const nm = String(st.displayName || "");
-    if(!/regular/i.test(nm) || (year && !nm.includes(String(year)))) return;
+    if(!/regular/i.test(nm) || (LG.id !== "nba" && year && !nm.includes(String(year)))) return;
     (st.categories || []).forEach(cat => (cat.events || []).forEach(ev => {
-      rows.push({date: (metas[ev.eventId] || {}).gameDate || "", stats: ev.stats || []});
+      const v = {};
+      Object.keys(STAT_ALIASES).forEach(k => {
+        const i = STAT_ALIASES[k].map(al => names.indexOf(al)).find(ix => ix >= 0);
+        if(i != null) v[k] = numOf(ev.stats && ev.stats[i]);
+      });
+      rows.push({date: (metas[ev.eventId] || {}).gameDate || "", v});
     }));
   });
   if(!rows.length) throw new Error("no games found in the game log (fields: " + Object.keys(d).join(",") + ")");
   rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const vals = {};
-  PROP_MARKETS.forEach(m => {
-    const i = names.indexOf(m.key);
-    vals[m.key] = i < 0 ? [] : rows.map(r => numOf(r.stats[i])).filter(v => v != null);
-  });
-  return vals;
+  return rows;
 }
 async function getLog(id){
-  const key = "pw1:log:" + id, c = mem.get(key) || store.get(key);
+  const key = `pw3:log:${LG.id}:${id}`, c = mem.get(key) || store.get(key);
   if(c && Date.now() - c.t < 6 * 3600000) return c.v;
-  const d = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${id}/gamelog`);
+  const sport = LG.id === "nba" ? "basketball/nba" : "football/nfl";
+  const d = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/${sport}/athletes/${id}/gamelog`);
   const v = parseGamelog(d, SLOTS[0] && SLOTS[0].year);
   const e = {t: Date.now(), v}; mem.set(key, e); store.set(key, e);
   return v;
@@ -1389,112 +1637,248 @@ function injStatus(teamName, player){
   const hit = (INJ[teamName] || []).find(i => i.name && player && i.name.toLowerCase() === player.toLowerCase());
   return hit ? String(hit.status || "") : "";
 }
-function projectProp(g, side, mk, vals, qbOut, status){
-  const last = vals.slice(-6), n = last.length;
-  let ws = 0, ms = 0;
-  last.forEach((v, i) => { const w = Math.pow(0.8, n - 1 - i); ws += w; ms += w * v; });
-  const base = ms / ws, m = g.m, notes = [];
+
+/* ---- simulation ---- */
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(str){ let h = 2166136261; for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function gauss(rng){ let u = 0; while(u === 0) u = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()); }
+function simulateOutcomes(base, w, targetSD, n, seed, integer){
+  const rng = mulberry32(seed), cum = []; let t = 0;
+  w.forEach(x => { t += x; cum.push(t); });
+  const mean = base.reduce((a, x, i) => a + w[i] * x, 0) / t;
+  const bootVar = base.reduce((a, x, i) => a + w[i] * (x - mean) * (x - mean), 0) / t;
+  const noiseSD = Math.sqrt(Math.max(0, targetSD * targetSD - bootVar));   // extra spread so small samples are not overconfident
+  const out = new Float32Array(n);
+  for(let k = 0; k < n; k++){
+    const r = rng() * t; let lo = 0, hi = cum.length - 1;
+    while(lo < hi){ const mid = (lo + hi) >> 1; if(cum[mid] < r) lo = mid + 1; else hi = mid; }
+    let v = base[lo] + noiseSD * gauss(rng);
+    if(v < 0) v = 0;
+    out[k] = integer ? Math.round(v) : v;
+  }
+  out.sort();
+  return out;
+}
+function lowerBound(a, x){ let lo = 0, hi = a.length; while(lo < hi){ const mid = (lo + hi) >> 1; if(a[mid] < x) lo = mid + 1; else hi = mid; } return lo; }
+function upperBound(a, x){ let lo = 0, hi = a.length; while(lo < hi){ const mid = (lo + hi) >> 1; if(a[mid] <= x) lo = mid + 1; else hi = mid; } return lo; }
+function probsAt(a, line){ const n = a.length, lo = lowerBound(a, line), up = upperBound(a, line); return {under: lo / n, push: (up - lo) / n, over: 1 - up / n}; }
+const quant = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))];
+
+function propSeries(rows, mk){
+  const out = [];
+  rows.forEach(r => {
+    let v;
+    if(mk.combo){ const parts = mk.combo.map(k => r.v[k]); if(parts.some(x => x == null)) return; v = parts.reduce((a, b) => a + b, 0); }
+    else { v = r.v[mk.key]; if(v == null) return; }
+    out.push({v, min: r.v.minutes != null ? r.v.minutes : null, date: r.date});
+  });
+  return out;
+}
+function projectProp(g, side, mk, series, ctx, key){
+  const last = series.slice(-(LG.id === "nba" ? 10 : 6)), n = last.length;
+  const m = g.m, notes = [];
   const pts = side === "home" ? m.ph : m.pa, margin = side === "home" ? m.margin : -m.margin;
-  const env = clamp(pts / (m.mu || 22.5), 0.7, 1.3);
+  const env = clamp(pts / (m.mu || BASE_MU), 0.7, 1.3);
   let mult = 1 + mk.elast * (env - 1);
-  if(Math.abs(env - 1) >= 0.04) notes.push(env > 1 ? "high expected scoring" : "low expected scoring");
+  if(Math.abs(env - 1) >= 0.04) notes.push(env > 1 ? "high expected team scoring" : "low expected team scoring");
+  const wts = last.map((_, i) => Math.pow(0.8, n - 1 - i));
+  const wmean = (arr) => arr.reduce((a, x, i) => a + x * wts[i], 0) / wts.reduce((a, b) => a + b, 0);
+  let base = last.map(x => x.v), projMin = null;
   if(mk.kind === "rush"){
     mult *= 1 + clamp(0.010 * margin, -0.12, 0.12);
     if(Math.abs(margin) >= 3) notes.push(margin > 0 ? "likely leading, more runs" : "likely trailing, fewer runs");
-  } else {
+  } else if(mk.kind === "pass"){
     mult *= 1 - clamp(0.006 * margin, -0.08, 0.08);
     if(Math.abs(margin) >= 3) notes.push(margin > 0 ? "likely leading, fewer passes" : "likely trailing, more passes");
+    const w = g.weather;
+    if(w){
+      let pw = 1;
+      if(w.wind >= 12) pw -= Math.min(0.10, (w.wind - 12) * 0.0125);
+      if(w.snow) pw -= 0.05; else if(w.precip >= 0.02) pw -= 0.03;
+      if(pw < 1){ mult *= pw; notes.push("weather hurts passing"); }
+    }
+    if(ctx.qbOut){ mult *= 0.92; notes.push("starting QB injured"); }
+  } else if(mk.kind === "nba" && last.every(x => x.min)){
+    projMin = wmean(last.map(x => x.min));
+    const blow = clamp((Math.abs(margin) - 8) * 0.012, 0, 0.10);   // starters sit in blowouts
+    projMin *= 1 - blow;
+    if(blow > 0) notes.push(`blowout risk trims minutes by ${(blow * 100).toFixed(0)}%`);
+    base = last.map(x => x.v * Math.pow(projMin / Math.max(x.min, 8), 0.8));   // put every game on the projected minutes
   }
-  const w = g.weather;
-  if(w && mk.kind === "pass"){
-    let pw = 1;
-    if(w.wind >= 12) pw -= Math.min(0.10, (w.wind - 12) * 0.0125);
-    if(w.snow) pw -= 0.05; else if(w.precip >= 0.02) pw -= 0.03;
-    if(pw < 1){ mult *= pw; notes.push("weather hurts passing"); }
-  }
-  if(qbOut){ mult *= 0.92; notes.push("starting QB injured"); }
-  const proj = base * mult;
-  const mean = last.reduce((a, b) => a + b, 0) / n;
-  const sv = n > 1 ? last.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (n - 1) : 0;
-  const prior = Math.pow(mk.cv * Math.max(proj, 1), 2), k = 3;
-  const sd = Math.max(1, Math.sqrt((Math.max(0, n - 1) * sv + k * prior) / (Math.max(0, n - 1) + k)));
-  // confidence (1-100): sample size, consistency, health. It describes the data, not the odds of being right.
-  const health = /doubtful/i.test(status) ? 0.2 : /questionable/i.test(status) ? 0.5 : /day/i.test(status) ? 0.7 : 1;
-  if(health < 1) notes.push(status.toLowerCase());
-  const conf = clamp(Math.round(100 * (0.4 * Math.min(n, 6) / 6 + 0.4 * (1 - Math.min(1, sd / Math.max(proj, 1) / 0.9)) + 0.2 * health)), 1, 99);
-  return {proj, sd, last, n, conf, notes};
+  const scaled = base.map(v => v * mult);
+  const mean = wmean(scaled), sv = n > 1 ? wmean(scaled.map(v => (v - mean) * (v - mean))) * n / (n - 1) : 0;
+  const prior = Math.pow(mk.cv * Math.max(mean, 1), 2), k = 3;
+  const sd = Math.max(0.5, Math.sqrt((Math.max(0, n - 1) * sv + k * prior) / (Math.max(0, n - 1) + k)));
+  const seed = hashStr(key), sorted = simulateOutcomes(scaled, wts, sd, SIM_N, seed, mk.integer), check = simulateOutcomes(scaled, wts, sd, SIM_N, seed ^ 0x9E3779B9, mk.integer);
+  const qs = [0.1, 0.25, 0.5, 0.75, 0.9], gap = Math.max.apply(null, qs.map(p => Math.abs(quant(sorted, p) - quant(check, p)))) / sd;
+  let tot = 0; for(let i = 0; i < sorted.length; i++) tot += sorted[i];
+  return {sorted, proj: tot / sorted.length, median: quant(sorted, 0.5), q25: quant(sorted, 0.25), q75: quant(sorted, 0.75), sd, n, notes, projMin,
+    last: last.map(x => x.v), cvSample: mean > 0 ? Math.sqrt(Math.max(0, sv)) / mean : 1, conv: {gap, ok: gap < 0.05}};
 }
-function rateFor(proj, sd, line, last){
-  let p = 1 - cdf((line - proj) / sd);     // chance of going over
-  p = 0.5 + 0.8 * (p - 0.5);                // pulled toward 50% because the model is imperfect
-  const over = p >= 0.5, pct = clamp(Math.round(100 * (over ? p : 1 - p)), 1, 99);
-  return {side: over ? "OVER" : "UNDER", pct, hits: last.filter(v => over ? v > line : v < line).length, n: last.length};
+function propConfidence(r, entry){
+  const sample = Math.min(r.n, 8) / 8, consistency = 1 - Math.min(1, r.cvSample);
+  const st = r.status || "";
+  const health = /^out|injured reserve|^ir$/i.test(st) ? 0 : /doubtful/i.test(st) ? 0.2 : /questionable/i.test(st) ? 0.5 : /day/i.test(st) ? 0.7 : (Object.keys(INJ).length ? 1 : 0.5);
+  const hasLine = entry && entry.line != null, priced = entry && (entry.over != null || entry.under != null);
+  return clamp(Math.round(25 * sample + 25 * consistency + 20 * health + 10 * (r.conv.ok ? 1 : 0.3) + 10 * (hasLine ? 1 : 0) + 10 * (priced ? 1 : 0.3)), 1, 99);
 }
-function rateCellHtml(proj, sd, last, line){
-  if(line == null || isNaN(line)) return `<small>Enter a line to get a rating</small>`;
-  const r = rateFor(proj, sd, line, last);
-  return `<span class="rate ${r.pct >= 62 ? "hi" : r.pct >= 55 ? "mid" : "lo"}">${r.side} ${r.pct}</span><small>${r.hits} of last ${r.n} games went ${r.side === "OVER" ? "over" : "under"}</small>`;
+function entryFor(key){
+  const u = LINES[key];
+  if(u && u.line != null) return Object.assign({source: "you"}, u);
+  const b = BOOKPROPS[key];
+  return b ? Object.assign({source: b.book || "odds provider"}, b) : null;
+}
+function evalProp(r, entry){
+  if(!entry || entry.line == null) return null;
+  const pr = probsAt(r.sorted, entry.line), oo = priceFor(entry.over), uu = priceFor(entry.under);
+  const evO = evUnit(pr.over, oo.price, pr.push), evU = evUnit(pr.under, uu.price, pr.push), over = evO >= evU;
+  const pick = over ? oo : uu, p = over ? pr.over : pr.under, ev = over ? evO : evU, dv = (entry.over != null && entry.under != null) ? devig(entry.over, entry.under) : null;
+  const conf = propConfidence(r, entry);
+  return {pr, side: over ? "OVER" : "UNDER", p, price: pick.price, assumed: pick.assumed, be: beProb(pick.price), edge: p - beProb(pick.price), ev, conf,
+    hold: dv ? dv.hold : null, marketP: dv ? (over ? dv.a : dv.b) : null, rawTier: tierOf(ev, conf, true), tier: tierOf(ev, conf, TIER_UNLOCK.props)};
 }
 async function buildProps(g){
-  const rows = [], errs = [], ids = new Set(), logs = {};
+  const rows = [], errs = [], ids = new Set(), logs = {}, markets = PROP_SETS[LG.id] || [];
   ["away", "home"].forEach(sd => Object.values(teamOf(g, sd).leaders || {}).forEach(p => ids.add(p.id)));
   await Promise.all([...ids].map(async id => { try{ logs[id] = await getLog(id); }catch(e){ errs.push(e.message); } }));
   ["away", "home"].forEach(sd => {
-    const t = teamOf(g, sd), L = t.leaders || {};
-    PROP_MARKETS.forEach(mk => {
-      const p = L[mk.lead]; if(!p) return;
-      const st = injStatus(t.name, p.name);
-      const row = {key: `${g.id}:${p.id}:${mk.key}`, name: p.name, pos: p.pos, team: t.code, side: sd, mk, status: st};
-      const arr = logs[p.id] && logs[p.id][mk.key];
+    const t = teamOf(g, sd), opp = teamOf(g, sd === "home" ? "away" : "home"), L = t.leaders || {};
+    markets.forEach(mk => {
+      const pl = L[mk.lead]; if(!pl) return;
+      const st = injStatus(t.name, pl.name), key = `${g.id}:${pl.id}:${mk.key}`;
+      const row = {key, gameId: g.id, playerId: pl.id, name: pl.name, pos: pl.pos, team: t.code, opp: opp.code, kickoff: g.date, side: sd, mk, status: st};
+      const series = logs[pl.id] ? propSeries(logs[pl.id], mk) : [];
       if(/^out|injured reserve|^ir$/i.test(st)) row.out = true;
-      else if(!arr || !arr.length) row.nodata = true;
+      else if(series.length < 2) row.nodata = true;
       else {
-        const qbOut = mk.key !== "passingYards" && L.passingYards && /out|doubtful/i.test(injStatus(t.name, L.passingYards.name));
-        Object.assign(row, projectProp(g, sd, mk, arr, qbOut, st));
+        const qbOut = LG.id === "nfl" && mk.key !== "passingYards" && L.passingYards && /out|doubtful/i.test(injStatus(t.name, L.passingYards.name));
+        Object.assign(row, projectProp(g, sd, mk, series, {qbOut}, key));
+        PROPSIM[key] = row.sorted;
       }
-      rows.push(row);
+      PROPROWS[key] = row; rows.push(row);
     });
   });
   PROPDATA[g.id] = {t: Date.now(), rows, errs};
 }
+const f1p = (v, d) => v == null ? "-" : v.toFixed(d);
+function calcHtml(r){
+  const d = r.mk.integer ? (r.mk.key === "receptions" ? 1 : 1) : 0, entry = entryFor(r.key), ev = evalProp(r, entry);
+  const proj = `Projection <b>${f1p(r.proj, d)}</b> \u00b7 fair line ${(Math.round(r.median * 2) / 2).toFixed(1)} \u00b7 typical range ${f1p(r.q25, d)} to ${f1p(r.q75, d)}${r.projMin != null ? ` \u00b7 projected minutes ${r.projMin.toFixed(0)}` : ""}`;
+  if(!ev) return `<div>${proj}</div><small>Enter the sportsbook line to compare. Without a line this is a projection only, not a recommendation.</small>`;
+  const P = v => Math.round(v * 100) + "%", ppts = v => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v * 100).toFixed(1)} points`;
+  const line = entry.line, side = ev.side;
+  const above = r.last.filter(v => v > line).length, below = r.last.filter(v => v < line).length;
+  const reasons = [
+    `Projection ${f1p(r.proj, d)} versus a line of ${line}`,
+    `Last ${r.n} games: ${r.last.map(v => v.toFixed(r.mk.integer ? 0 : 0)).join(", ")} (${above} over, ${below} under the line)`
+  ].concat(r.notes.map(x => x.charAt(0).toUpperCase() + x.slice(1))).slice(0, 5);
+  const risks = [];
+  if(r.n < 5) risks.push(`Small sample: only ${r.n} games`);
+  if(r.status) risks.push(`Injury status: ${r.status}`);
+  risks.push(`Outcomes are wide: the middle half runs ${f1p(r.q25, d)} to ${f1p(r.q75, d)}`);
+  if(!r.conv.ok) risks.push("The simulation check did not converge tightly");
+  risks.push("Usage, snaps, targets and routes are not in this feed, so role changes are not modeled");
+  return `<div>${proj}</div>
+    <div class="vline"><span class="rate ${ev.tier === "PASS" ? "lo" : ev.tier === "LEAN" ? "mid" : "hi"}">${ev.tier === "PASS" ? "PASS" : side + " " + line}</span> <b>${ev.tier}</b>${ev.tier !== ev.rawTier ? ` <small>(rules point to ${ev.rawTier}; tiers above LEAN are locked)</small>` : ""}</div>
+    <div>Model: over ${P(ev.pr.over)}, under ${P(ev.pr.under)}${ev.pr.push ? `, push ${P(ev.pr.push)}` : ""}</div>
+    <div>${side} at ${fmtML(ev.price)}${ev.assumed ? " (assumed, no price entered)" : ""}: break-even ${P(ev.be)}, edge ${ppts(ev.edge)}, expected value ${fmtEV(ev.ev)} per unit${ev.hold != null ? `, market margin ${(ev.hold * 100).toFixed(1)}%` : ""}</div>
+    <div>Confidence <b>${ev.conf}/100</b> <small>(reliability of inputs, not a probability)</small> \u00b7 line from ${esc(entry.source)}</div>
+    <small>Supporting: ${reasons.map(esc).join("; ")}.</small>
+    <small>Risks: ${risks.map(esc).join("; ")}.</small>
+    <small>${SIM_N.toLocaleString()} simulations, check ${r.conv.ok ? "passed" : "loose"} (max quantile gap ${r.conv.gap.toFixed(2)} sd).</small>`;
+}
 function propRowHtml(r){
-  const d = r.mk.dec, f = v => v.toFixed(d);
-  let right = "", mid = "";
+  const e = LINES[r.key] || {}, b = BOOKPROPS[r.key] || {};
+  const val = v => v != null ? v : "";
+  const when = new Date(r.kickoff).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
+  let mid = "", right = "";
   if(r.out) mid = `<small>Listed as ${esc(r.status)}. No projection.</small>`;
   else if(r.nodata) mid = `<small>Not enough game data yet.</small>`;
   else {
-    const lo = Math.max(0, r.proj - 0.67 * r.sd), hi = r.proj + 0.67 * r.sd;
-    mid = `<div>Projection <b>${f(r.proj)}</b> <small>(typical range ${f(lo)} to ${f(hi)})</small></div>
-      <small>Last ${r.n}: ${r.last.map(v => v.toFixed(d)).join(", ")}</small>
-      ${r.notes.length ? `<small>Adjusted for: ${esc(r.notes.join(", "))}</small>` : ""}`;
-    const line = LINES[r.key];
-    right = `<label><small>Line</small> <input class="lineinp" inputmode="decimal" placeholder="e.g. ${r.mk.dec ? "4.5" : "249.5"}" value="${line != null ? line : ""}"></label>
-      <div class="prate">${rateCellHtml(r.proj, r.sd, r.last, line)}</div>
-      <small>Data confidence ${r.conf} of 100</small>`;
+    mid = `<div class="pcalc" id="pc-${esc(r.key)}">${calcHtml(r)}</div>`;
+    right = `<label><small>Line</small> <input class="lineinp" inputmode="decimal" placeholder="${val(b.line) !== "" ? b.line : "e.g. " + (r.mk.integer ? "4.5" : "249.5")}" value="${val(e.line)}"></label>
+      <label><small>Over odds</small> <input class="ovinp" inputmode="numeric" placeholder="${val(b.over) !== "" ? fmtML(b.over) : "-110"}" value="${val(e.over)}"></label>
+      <label><small>Under odds</small> <input class="unin" inputmode="numeric" placeholder="${val(b.under) !== "" ? fmtML(b.under) : "-110"}" value="${val(e.under)}"></label>`;
   }
-  const attrs = r.out || r.nodata ? "" : ` data-proj="${r.proj}" data-sd="${r.sd}" data-last="${r.last.join(",")}"`;
-  return `<div class="prow" data-key="${esc(r.key)}"${attrs}>
-    <div class="pleft"><b>${esc(r.name)}</b> <small>${esc(r.pos)} - ${esc(r.team)} - ${esc(r.mk.label)}</small>${mid}</div>
+  return `<div class="prow" data-key="${esc(r.key)}">
+    <div class="pleft"><b>${esc(r.name)}</b> <small>${esc(r.pos)} \u00b7 ${esc(r.team)} vs ${esc(r.opp)} \u00b7 ${esc(r.mk.label)} \u00b7 ${esc(when)}</small>${mid}</div>
     <div class="pright">${right}</div></div>`;
 }
 function propsBody(g){
   const d = PROPDATA[g.id];
   if(!d) return `<p class="note">Loading player data...</p>`;
   if(!d.rows.length) return `<p class="note">Player data isn't available for this game yet.${d.errs.length ? " (" + esc(d.errs[0]) + ")" : ""}</p>`;
-  const intro = `<p class="note">Projections use each player's recent games, adjusted for this game's expected scoring, game script, weather and injuries. Type your sportsbook's line to get a rating. The rating is the model's chance (1 to 99) of the OVER or UNDER landing, pulled toward 50% to stay humble. These haven't been back-tested.</p>`;
+  const intro = `<p class="note">Each prop is simulated ${SIM_N.toLocaleString()} times from the player's own recent games, adjusted for this game's expected scoring, script and conditions. Type the sportsbook line and odds to get probabilities, expected value and a tier. With no odds typed, -110 is assumed and labeled. Props from the same game move together (passing yards, receiving yards, receptions and game script), so treat them as one bet, not several independent ones. These have not been back-tested; results are tracked once you enter lines before kickoff.</p>`;
   const blocks = ["away", "home"].map(sd => {
     const rows = d.rows.filter(r => r.side === sd);
     return rows.length ? `<div class="pteam">${esc(teamOf(g, sd).name)}</div>${rows.map(propRowHtml).join("")}` : "";
   }).join("");
-  const err = d.errs.length ? `<p class="note">Some players couldn't load: ${esc(d.errs[0])}</p>` : "";
-  return intro + blocks + err;
+  return intro + blocks + (d.errs.length ? `<p class="note">Some players couldn't load: ${esc(d.errs[0])}</p>` : "");
 }
 function propsHtml(g){
-  if(LG.id !== "nfl" || g.completed || g.state !== "pre") return "";
-  return `<details class="props" data-gid="${esc(g.id)}"><summary>Player props: projections and ratings</summary><div class="propbody"><p class="note">Loading player data...</p></div></details>`;
+  if(!PROP_SETS[LG.id] || g.completed || g.state !== "pre") return "";
+  return `<details class="props" data-gid="${esc(g.id)}"><summary>Player props: simulation, odds and value</summary><div class="propbody"><p class="note">Loading player data...</p></div></details>`;
 }
 function restoreProps(){
   OPEN_PROPS.forEach(id => { const d = document.querySelector(`details.props[data-gid="${id}"]`); if(d) d.open = true; });
+}
+
+/* ---- prop archive: first line you enter before kickoff is frozen, then graded from the player's game log ---- */
+const propArchKey = () => `pw2:proparch:${LG.id}`, propResKey = () => `pw2:propres:${LG.id}`;
+function setPropEntry(key, patch){
+  const cur = LINES[key] || {};
+  const next = Object.assign({}, cur, patch);
+  Object.keys(next).forEach(k => { if(next[k] == null || (typeof next[k] === "number" && isNaN(next[k]))) delete next[k]; });
+  if(next.over != null && Math.abs(next.over) < 100) delete next.over;
+  if(next.under != null && Math.abs(next.under) < 100) delete next.under;
+  if(Object.keys(next).length) LINES[key] = next; else delete LINES[key];
+  store.set("pw2:lines", LINES);
+  const r = PROPROWS[key];
+  if(r && r.sorted && next.line != null) archiveProp(r, entryFor(key));
+  return r;
+}
+function archiveProp(r, entry){
+  const a = store.get(propArchKey()) || {};
+  if(a[r.key] || !entry || entry.line == null || new Date(r.kickoff).getTime() <= Date.now()) return false;   // never overwritten, only before kickoff
+  const ev = evalProp(r, entry);
+  a[r.key] = {v: 1, league: LG.id, id: r.key, gameId: r.gameId, playerId: r.playerId, player: r.name, team: r.team, opponent: r.opp, market: r.mk.key,
+    kickoff: r.kickoff, recordedAt: new Date().toISOString(), modelVersion: PROP_VERSION, sims: SIM_N, line: entry.line, overOdds: entry.over == null ? null : entry.over,
+    underOdds: entry.under == null ? null : entry.under, lineSource: entry.source, projection: r.proj, median: r.median,
+    pOver: ev.pr.over, pUnder: ev.pr.under, pPush: ev.pr.push, side: ev.side, price: ev.price, priceAssumed: ev.assumed, edge: ev.edge, ev: ev.ev, confidence: ev.conf, tier: ev.rawTier, status: r.status};
+  store.set(propArchKey(), a);
+  return true;
+}
+async function gradePropRecords(){
+  const a = store.get(propArchKey()) || {}, res = store.get(propResKey()) || {}; let changed = false;
+  for(const id of Object.keys(a)){
+    const rec = a[id]; if(res[id] || new Date(rec.kickoff).getTime() > Date.now() - 4 * 3600000) continue;
+    try{
+      const mk = (PROP_SETS[rec.league] || []).find(x => x.key === rec.market); if(!mk) continue;
+      const rows = await getLog(rec.playerId), t0 = new Date(rec.kickoff).getTime();
+      const hit = rows.find(rw => rw.date && Math.abs(new Date(rw.date).getTime() - t0) < 36 * 3600000);
+      const series = hit ? propSeries([hit], mk) : [];
+      if(!series.length) continue;
+      const v = series[0].v, over = rec.side === "OVER";
+      const result = v === rec.line ? "P" : ((v > rec.line) === over ? "W" : "L");
+      res[id] = {actual: v, result, profit: profitUnit(result, rec.price), priced: !rec.priceAssumed};
+      changed = true;
+    }catch(e){}
+  }
+  if(changed) store.set(propResKey(), res);
+  return res;
+}
+function propTally(){
+  const a = store.get(propArchKey()) || {}, res = store.get(propResKey()) || {};
+  const t = {n: 0, w: 0, l: 0, p: 0, brier: [], roi: {n: 0, profit: 0}, be: 0, byMarket: {}};
+  Object.keys(res).forEach(id => {
+    const rec = a[id], r = res[id]; if(!rec) return;
+    t.n++; t[r.result.toLowerCase()]++;
+    const bm = t.byMarket[rec.market] = t.byMarket[rec.market] || {w: 0, l: 0, p: 0}; bm[r.result.toLowerCase()]++;
+    if(r.result !== "P"){ const pw = rec.side === "OVER" ? rec.pOver : rec.pUnder; t.brier.push((pw - (r.result === "W" ? 1 : 0)) * (pw - (r.result === "W" ? 1 : 0))); }
+    if(r.priced){ t.roi.n++; t.roi.profit += r.profit; t.be += beProb(rec.price); }
+  });
+  t.rate = (t.w + t.l) ? t.w / (t.w + t.l) : null;
+  return t;
 }
 document.addEventListener("toggle", async e => {
   const d = e.target;
@@ -1510,16 +1894,17 @@ document.addEventListener("toggle", async e => {
   body.innerHTML = propsBody(g);
 }, true);
 document.addEventListener("input", e => {
-  const inp = e.target.closest && e.target.closest(".lineinp"); if(!inp) return;
-  const row = inp.closest(".prow"), v = parseFloat(inp.value);
-  if(isNaN(v)) delete LINES[row.dataset.key]; else LINES[row.dataset.key] = v;
-  store.set("pw1:lines", LINES);
-  row.querySelector(".prate").innerHTML = rateCellHtml(+row.dataset.proj, +row.dataset.sd, row.dataset.last.split(",").map(Number), isNaN(v) ? null : v);
+  const inp = e.target.closest && e.target.closest(".lineinp, .ovinp, .unin"); if(!inp) return;
+  const row = inp.closest(".prow"), v = parseFloat(inp.value), val = isNaN(v) ? null : v;
+  const field = inp.classList.contains("lineinp") ? "line" : inp.classList.contains("ovinp") ? "over" : "under";
+  const r = setPropEntry(row.dataset.key, {[field]: val});
+  const box = document.getElementById("pc-" + row.dataset.key);
+  if(box && r && r.sorted) box.innerHTML = calcHtml(r);
 });
 
 /* ---------------------------- league switching ---------------------------- */
 function updateNav(){
-  ["NFL", "CFB"].forEach(k => {
+  ["NFL", "CFB", "NBA"].forEach(k => {
     const on = LG.id === k.toLowerCase(), tab = document.getElementById("tab" + k);
     tab.setAttribute("aria-current", on ? "page" : "false"); tab.setAttribute("aria-selected", on ? "true" : "false");
   });
@@ -1529,15 +1914,16 @@ function updateNav(){
   document.title = `${LG.name} Projections - Pointwise`;
 }
 function clearBoard(){
-  ["plays", "tiles", "weeklyTable", "methodBody", "compareBody", "sourcesBody", "resMode", "dayFilter", "week"].forEach(id => { document.getElementById(id).innerHTML = ""; });
+  ["plays", "tiles", "weeklyTable", "methodBody", "compareBody", "sourcesBody", "reviewBody", "resMode", "dayFilter", "week"].forEach(id => { document.getElementById(id).innerHTML = ""; });
   document.getElementById("games").innerHTML = `<p class="empty">Loading games...</p>`;
   document.getElementById("heroTitle").textContent = "Loading";
-  document.getElementById("heroLeague").textContent = LG.id === "nfl" ? "NFL" : "College football";
+  document.getElementById("heroLeague").textContent = LG.name;
   document.getElementById("heroMeta").innerHTML = `<span>Loading this week's schedule...</span>`;
   document.getElementById("gamesTitle").textContent = "Games";
   document.getElementById("factorNote").textContent = "";
   document.getElementById("recIntro").textContent = "";
   document.getElementById("resBanner").textContent = "";
+  document.getElementById("clvNote").textContent = "";
 }
 function switchLeague(id){
   if(!LEAGUES[id] || LEAGUES[id] === LG) return;
@@ -1552,7 +1938,7 @@ function switchLeague(id){
 }
 function syncFromHash(){
   const h = location.hash;
-  const id = h === "#cfb" ? "cfb" : (h === "#nfl" || h === "") ? "nfl" : null;
+  const id = h === "#cfb" ? "cfb" : h === "#nba" ? "nba" : (h === "#nfl" || h === "") ? "nfl" : null;
   if(id) switchLeague(id);
 }
 window.addEventListener("hashchange", syncFromHash);
@@ -1587,7 +1973,7 @@ document.getElementById("dayFilter").addEventListener("click", e => {
   dayFilter = b.dataset.d; renderFilters(); renderGames();
 });
 document.getElementById("week").addEventListener("change", e => {
-  selIdx = +e.target.value; followLatest = selIdx === SLOTS.length - 1; dayFilter = "All"; renderAll(); schedule();
+  selIdx = +e.target.value; followLatest = selIdx === defaultIdx(); dayFilter = "All"; renderAll(); schedule();
 });
 document.getElementById("resMode").addEventListener("click", e => {
   const b = e.target.closest && e.target.closest("button"); if(!b || !b.dataset.m) return;
@@ -1605,7 +1991,7 @@ document.getElementById("copy").addEventListener("click", async () => {
 document.addEventListener("visibilitychange", () => { if(!document.hidden && lastUpdated && Date.now() - lastUpdated > 120000) load(true).catch(() => {}); });
 
 document.getElementById("yr").textContent = new Date().getFullYear();
-setLeague(location.hash === "#cfb" ? "cfb" : "nfl");
+setLeague(location.hash === "#cfb" ? "cfb" : location.hash === "#nba" ? "nba" : "nfl");
 updateNav();
 start();
 </script>
