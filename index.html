@@ -301,7 +301,7 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 <footer>
   <div class="wrap">
     <span>&#169; <span id="yr"></span> Pointwise &#183; Schedule, scores and lines from ESPN</span>
-    <span>For information and entertainment only &#183; build 9</span>
+    <span>For information and entertainment only &#183; build 10</span>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -422,7 +422,7 @@ function parseEvent(ev){
   const a = comp.competitors.find(c => c.homeAway === "away");
   if(!h || !a) return null;
   const side = c => ({
-    code: c.team.abbreviation, name: c.team.displayName,
+    code: c.team.abbreviation, tid: c.team.id, name: c.team.displayName,
     color: c.team.color ? "#" + c.team.color : "#333333",
     score: (c.score != null && c.score !== "") ? Number(c.score) : null,
     rec: ((c.records || []).find(r => r.type === "total" || r.name === "overall") || (c.records || [])[0] || {}).summary || "",
@@ -1606,17 +1606,30 @@ const PROPDATA = {}, PROPSIM = {}, PROPROWS = {};
 const OPEN_PROPS = new Set();
 
 function numOf(x){ const n = parseFloat(String(x).replace(/,/g, "")); return isNaN(n) ? null : n; }
+const STAT_DISPLAY = {passingYards: ["Passing Yards"], rushingYards: ["Rushing Yards"], receivingYards: ["Receiving Yards"], receptions: ["Receptions"],
+  points: ["Points"], rebounds: ["Rebounds", "Total Rebounds"], assists: ["Assists"], minutes: ["Minutes"]};
+function statIndex(names, disp, k){
+  for(const al of STAT_ALIASES[k]){ const i = names.indexOf(al); if(i >= 0) return i; }
+  for(const al of (STAT_DISPLAY[k] || [])){ const i = disp.indexOf(al); if(i >= 0) return i; }
+  return -1;
+}
+// ESPN lays game logs out two ways: one flat list of stats, or one list per stat group (passing, rushing, receiving).
 function parseGamelog(d, year){
-  const names = d.names || [], metas = d.events || {}, rows = [];
+  const metas = d.events || {}, rows = [], flatNames = d.names || [], flatDisp = d.displayNames || [];
+  const groups = (d.categories || []).filter(c => c && c.names);
   (d.seasonTypes || []).forEach(st => {
     const nm = String(st.displayName || "");
     if(!/regular/i.test(nm) || (LG.id !== "nba" && year && !nm.includes(String(year)))) return;
     (st.categories || []).forEach(cat => (cat.events || []).forEach(ev => {
-      const v = {};
-      Object.keys(STAT_ALIASES).forEach(k => {
-        const i = STAT_ALIASES[k].map(al => names.indexOf(al)).find(ix => ix >= 0);
-        if(i != null) v[k] = numOf(ev.stats && ev.stats[i]);
-      });
+      const v = {}, stats = ev.stats || [];
+      if(stats.length && Array.isArray(stats[0])){
+        stats.forEach((arr, gi) => {
+          const grp = groups[gi]; if(!grp) return;
+          Object.keys(STAT_ALIASES).forEach(k => { if(v[k] != null) return; const i = statIndex(grp.names || [], grp.displayNames || [], k); if(i >= 0) v[k] = numOf(arr[i]); });
+        });
+      } else {
+        Object.keys(STAT_ALIASES).forEach(k => { const i = statIndex(flatNames, flatDisp, k); if(i >= 0) v[k] = numOf(stats[i]); });
+      }
       rows.push({date: (metas[ev.eventId] || {}).gameDate || "", v});
     }));
   });
@@ -1737,9 +1750,32 @@ function evalProp(r, entry){
   return {pr, side: over ? "OVER" : "UNDER", p, price: pick.price, assumed: pick.assumed, be: beProb(pick.price), edge: p - beProb(pick.price), ev, conf,
     hold: dv ? dv.hold : null, marketP: dv ? (over ? dv.a : dv.b) : null, rawTier: tierOf(ev, conf, true), tier: tierOf(ev, conf, TIER_UNLOCK.props)};
 }
+async function discoverLeaders(g, why){
+  const sets = PROP_SETS[LG.id] || [];
+  const complete = side => { const L = teamOf(g, side).leaders || {}; return sets.every(mk => L[mk.lead]); };
+  if(complete("home") && complete("away")) return;
+  try{
+    const sm = await getJSON(`${API}/summary?event=${g.id}`);
+    let found = 0;
+    (sm.leaders || []).forEach(gr => {
+      const abbr = gr.team && gr.team.abbreviation, tid = gr.team && gr.team.id;
+      const side = ((abbr && abbr === g.home.code) || (tid != null && String(tid) === String(g.home.tid))) ? "home"
+                 : ((abbr && abbr === g.away.code) || (tid != null && String(tid) === String(g.away.tid))) ? "away" : null;
+      if(!side) return;
+      const t = teamOf(g, side); t.leaders = t.leaders || {};
+      (gr.leaders || []).forEach(cat => {
+        const a = cat.leaders && cat.leaders[0] && cat.leaders[0].athlete;
+        if(a && a.id && !t.leaders[cat.name]){ t.leaders[cat.name] = {id: String(a.id), name: a.displayName || a.fullName || "", pos: (a.position && a.position.abbreviation) || ""}; found++; }
+      });
+    });
+    why.push(found ? "The scoreboard had no complete player leaders for this game, so the event summary supplied them." : "The scoreboard had no player leaders and the event summary listed none either.");
+  }catch(e){ why.push("The scoreboard had no player leaders and the event summary failed to load (" + e.message + ")."); }
+}
 async function buildProps(g){
-  const rows = [], errs = [], ids = new Set(), logs = {}, markets = PROP_SETS[LG.id] || [];
+  const rows = [], errs = [], why = [], ids = new Set(), logs = {}, markets = PROP_SETS[LG.id] || [];
+  await discoverLeaders(g, why);
   ["away", "home"].forEach(sd => Object.values(teamOf(g, sd).leaders || {}).forEach(p => ids.add(p.id)));
+  if(!ids.size) why.push("No player ids were found for this game in either feed.");
   await Promise.all([...ids].map(async id => { try{ logs[id] = await getLog(id); }catch(e){ errs.push(e.message); } }));
   ["away", "home"].forEach(sd => {
     const t = teamOf(g, sd), opp = teamOf(g, sd === "home" ? "away" : "home"), L = t.leaders || {};
@@ -1749,7 +1785,11 @@ async function buildProps(g){
       const row = {key, gameId: g.id, playerId: pl.id, name: pl.name, pos: pl.pos, team: t.code, opp: opp.code, kickoff: g.date, side: sd, mk, status: st};
       const series = logs[pl.id] ? propSeries(logs[pl.id], mk) : [];
       if(/^out|injured reserve|^ir$/i.test(st)) row.out = true;
-      else if(series.length < 2) row.nodata = true;
+      else if(series.length < 2){
+        row.nodata = true;
+        const seen = logs[pl.id] && logs[pl.id][0] ? Object.keys(logs[pl.id][0].v).filter(k => logs[pl.id][0].v[k] != null).join(", ") : "";
+        row.why = logs[pl.id] ? `Only ${series.length} game${series.length === 1 ? "" : "s"} with ${mk.label.toLowerCase()} in the game log (stats found: ${seen || "none"}).` : "The game log did not load.";
+      }
       else {
         const qbOut = LG.id === "nfl" && mk.key !== "passingYards" && L.passingYards && /out|doubtful/i.test(injStatus(t.name, L.passingYards.name));
         Object.assign(row, projectProp(g, sd, mk, series, {qbOut}, key));
@@ -1758,7 +1798,7 @@ async function buildProps(g){
       PROPROWS[key] = row; rows.push(row);
     });
   });
-  PROPDATA[g.id] = {t: Date.now(), rows, errs};
+  PROPDATA[g.id] = {t: Date.now(), rows, errs, why};
 }
 const f1p = (v, d) => v == null ? "-" : v.toFixed(d);
 function calcHtml(r){
@@ -1793,7 +1833,7 @@ function propRowHtml(r){
   const when = new Date(r.kickoff).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
   let mid = "", right = "";
   if(r.out) mid = `<small>Listed as ${esc(r.status)}. No projection.</small>`;
-  else if(r.nodata) mid = `<small>Not enough game data yet.</small>`;
+  else if(r.nodata) mid = `<small>Not enough game data yet. ${esc(r.why || "")}</small>`;
   else {
     mid = `<div class="pcalc" id="pc-${esc(r.key)}">${calcHtml(r)}</div>`;
     right = `<label><small>Line</small> <input class="lineinp" inputmode="decimal" placeholder="${val(b.line) !== "" ? b.line : "e.g. " + (r.mk.integer ? "4.5" : "249.5")}" value="${val(e.line)}"></label>
@@ -1807,13 +1847,13 @@ function propRowHtml(r){
 function propsBody(g){
   const d = PROPDATA[g.id];
   if(!d) return `<p class="note">Loading player data...</p>`;
-  if(!d.rows.length) return `<p class="note">Player data isn't available for this game yet.${d.errs.length ? " (" + esc(d.errs[0]) + ")" : ""}</p>`;
+  if(!d.rows.length) return `<p class="note">Player data isn't available for this game yet.</p><p class="note">Why: ${esc((d.why || []).concat(d.errs || []).join(" ") || "unknown")}</p><p><button class="btn propreload" type="button" data-gid="${esc(g.id)}">Try loading again</button></p>`;
   const intro = `<p class="note">Each prop is simulated ${SIM_N.toLocaleString()} times from the player's own recent games, adjusted for this game's expected scoring, script and conditions. Type the sportsbook line and odds to get probabilities, expected value and a tier. With no odds typed, -110 is assumed and labeled. Props from the same game move together (passing yards, receiving yards, receptions and game script), so treat them as one bet, not several independent ones. These have not been back-tested; results are tracked once you enter lines before kickoff.</p>`;
   const blocks = ["away", "home"].map(sd => {
     const rows = d.rows.filter(r => r.side === sd);
     return rows.length ? `<div class="pteam">${esc(teamOf(g, sd).name)}</div>${rows.map(propRowHtml).join("")}` : "";
   }).join("");
-  return intro + blocks + (d.errs.length ? `<p class="note">Some players couldn't load: ${esc(d.errs[0])}</p>` : "");
+  return intro + ((d.why && d.why.length) ? `<p class="note">Loading note: ${esc(d.why.join(" "))}</p>` : "") + blocks + (d.errs.length ? `<p class="note">Some players couldn't load: ${esc(d.errs[0])}</p>` : "");
 }
 function propsHtml(g){
   if(!PROP_SETS[LG.id] || g.completed || g.state !== "pre") return "";
@@ -1893,6 +1933,13 @@ document.addEventListener("toggle", async e => {
   }
   body.innerHTML = propsBody(g);
 }, true);
+document.addEventListener("click", async e => {
+  const btn = e.target.closest && e.target.closest(".propreload"); if(!btn) return;
+  const id = btn.dataset.gid, g = GAMES.find(x => x.id === id), body = btn.closest(".propbody");
+  if(!g || !body) return;
+  delete PROPDATA[id]; body.innerHTML = `<p class="note">Loading player data...</p>`;
+  await buildProps(g); body.innerHTML = propsBody(g);
+});
 document.addEventListener("input", e => {
   const inp = e.target.closest && e.target.closest(".lineinp, .ovinp, .unin"); if(!inp) return;
   const row = inp.closest(".prow"), v = parseFloat(inp.value), val = isNaN(v) ? null : v;
